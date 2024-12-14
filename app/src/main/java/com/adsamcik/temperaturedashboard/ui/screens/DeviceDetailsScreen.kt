@@ -62,6 +62,7 @@ fun DeviceDetailsScreen(device: ViewDevice?) {
                 // Use BleDeviceConnector to connect and retrieve data for this device
                 val bleDeviceConnector = BleDeviceConnector(context, device)
                 kotlinx.coroutines.GlobalScope.launch {
+                    Log.d("DeviceDetails", "Connecting to device...")
                     val connected = bleDeviceConnector.connect()
                     if (connected) {
                         val data = bleDeviceConnector.readData()

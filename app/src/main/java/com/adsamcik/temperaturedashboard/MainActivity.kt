@@ -1,14 +1,11 @@
 package com.adsamcik.temperaturedashboard
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,107 +35,92 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.adsamcik.temperaturedashboard.data.ViewDevice
-import com.adsamcik.temperaturedashboard.data.toDevice
-import com.adsamcik.temperaturedashboard.data.toViewDevice
-import com.adsamcik.temperaturedashboard.networking.BleDeviceConnector
-import com.adsamcik.temperaturedashboard.networking.DeviceDiscoveryManager
-import com.adsamcik.temperaturedashboard.storage.Device
 import com.adsamcik.temperaturedashboard.storage.DeviceDatabase
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
 import com.adsamcik.temperaturedashboard.ui.models.AddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.models.MainViewModel
 import com.adsamcik.temperaturedashboard.ui.models.MockAddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.screens.DeviceDetailsScreen
+import com.adsamcik.temperaturedashboard.ui.screens.MainScreen
 import com.adsamcik.temperaturedashboard.ui.theme.TemperatureDashboardTheme
-import kotlinx.coroutines.launch
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
 
-        val mainViewModel: MainViewModel = MainViewModel(DeviceRepository(DeviceDatabase.getDatabase(this).deviceDao()))
-        val addDeviceViewModel: AddDeviceViewModel = AddDeviceViewModel(applicationContext)
+        // Initialize your ViewModels here if needed
+        val mainViewModel = MainViewModel(DeviceRepository(DeviceDatabase.getDatabase(this).deviceDao()))
+        val addDeviceViewModel = AddDeviceViewModel(applicationContext)
 
         setContent {
             val navController = rememberNavController()
             TemperatureDashboardTheme {
-                NavHost(
-                    navController = navController,
-                    startDestination = "main_screen"
-                ) {
-                    composable("main_screen") {
-                        MainScreen(
-                            mainViewModel = mainViewModel,
-                            addDeviceViewModel = addDeviceViewModel,
-                            navController = navController
-                        )
+                // Keep your Scaffold at the top level
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
+                        }
                     }
-                    composable("device_details/{deviceId}") { backStackEntry ->
-                        val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
-                        val device = mainViewModel.addedDevices.value.find { it.device.macAddress == deviceId }
-                        DeviceDetailsScreen(device = device)
-                    }
+                ) { innerPadding ->
+                    // Pass innerPadding to the NavigationGraph so screens can use it
+                    NavigationGraph(
+                        navController = navController,
+                        innerPadding = innerPadding,
+                        mainViewModel = mainViewModel,
+                        addDeviceViewModel = addDeviceViewModel
+                    )
                 }
             }
         }
     }
 }
+
 
 @Composable
-fun MainScreen(
-    mainViewModel: MainViewModel,
-    addDeviceViewModel: AddDeviceViewModel,
+fun NavigationGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    innerPadding: PaddingValues,
+    mainViewModel: MainViewModel,
+    addDeviceViewModel: AddDeviceViewModel
 ) {
-    val addedDevices by mainViewModel.addedDevices
-    val showAddDeviceDialog by mainViewModel.showAddDeviceDialog
-
-    Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(addedDevices) { device ->
-                DeviceListItem(device = device, onDeviceSelected = {
-                    navController.navigate("device_details/${device.device.macAddress}")
-                })
-            }
+    NavHost(
+        navController = navController,
+        startDestination = "main_screen",
+        modifier = Modifier.padding(innerPadding)
+    ) {
+        composable("main_screen") {
+            // Pass ViewModels and padding down to MainScreen
+            MainScreen(
+                mainViewModel = mainViewModel,
+                addDeviceViewModel = addDeviceViewModel,
+                navController = navController
+            )
         }
 
-        if (showAddDeviceDialog) {
-            AddDeviceDialog(
-                viewModel = addDeviceViewModel,
-                onDeviceSelected = { device ->
-                    mainViewModel.addDevice(device.copy())
-                    mainViewModel.dismissAddDeviceDialog()
-                    addDeviceViewModel.stopScanning()
-                },
-                onDismiss = {
-                    mainViewModel.dismissAddDeviceDialog()
-                    addDeviceViewModel.stopScanning()
-                }
-            )
+        composable("device_details/{deviceId}") { backStackEntry ->
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            val device = mainViewModel.addedDevices.value.find { it.device.macAddress == deviceId }
+            DeviceDetailsScreen(device = device)
         }
     }
 }
-
 
 @Composable
 fun AddDeviceDialog(
