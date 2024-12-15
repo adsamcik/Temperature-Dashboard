@@ -4,40 +4,25 @@ import com.adsamcik.temperaturedashboard.data.TemperatureHumidityData
 import com.adsamcik.temperaturedashboard.storage.Device
 import java.util.UUID
 
-/**
- * A public API interface for handling communication with BLE devices.
- * Implementations provide device-specific logic and data format.
- */
 interface BleDeviceHandler {
     val name: String
-
     val iconRes: Int?
 
+    val readCharacteristicUuid: UUID
+    val writeCharacteristicUuid: UUID
 
     /**
-     * Checks if the provided [Device] is compatible.
+     * Returns the command (if any) to request data for the given mode.
+     * If no command is needed, return null.
      */
-    fun isCompatible(device: Device): Boolean
+    fun getRequestCommand(mode: ApiMode): ByteArray?
 
     /**
-     * Returns the UUID of the read characteristic for this device type.
+     * Given a connected device and a mode, this method:
+     * 1. Writes the request command if available
+     * 2. Enables notifications
+     * 3. Collects all needed notifications from the device
+     * 4. Decodes the packets into a list of TemperatureHumidityData
      */
-    fun getReadCharacteristicUuid(): UUID
-
-    /**
-     * Returns the UUID of the write characteristic for this device type.
-     */
-    fun getWriteCharacteristicUuid(): UUID
-
-    /**
-     * Provides the command (as ByteArray) that should be sent to the device
-     * to request data.
-     */
-    fun getRequestCommand(): ByteArray
-
-    /**
-     * Decodes the provided raw data into a [TemperatureHumidityData].
-     * Returns null if decoding fails.
-     */
-    fun decodeData(rawData: ByteArray): TemperatureHumidityData?
+    suspend fun retrieveData(connectedDevice: ConnectedBleDevice, mode: ApiMode): List<TemperatureHumidityData>
 }
