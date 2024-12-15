@@ -1,206 +1,369 @@
-package com.adsamcik.temperaturedashboard.networking
+package com.example.tp357
 
+import android.bluetooth.*
+import android.bluetooth.le.*
+import android.content.Context
 import android.util.Log
-import com.adsamcik.temperaturedashboard.data.TemperatureHumidityData
-import com.adsamcik.temperaturedashboard.storage.Device
-import java.util.UUID
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.*
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.*
+import kotlin.math.min
 
-class ThermoProTP357Handler : BleDeviceHandler {
-    override val name: String
-        get() = "ThermoPro TP357"
-    override val iconRes: Int?
-        get() = null
+/**
+ * Represents a discovered TP357 advertising packet with relevant data.
+ */
+data class Tp357ScanResult(
+    val address: String,
+    val time: Long,
+    val rssi: Int,
+    val humidityRh: Int,
+    val temperatureC: Double,
+    val batteryLevelPercentage: String
+)
+
+/**
+ * Represents a data point retrieved from querying the TP357 device.
+ */
+data class Tp357DataPoint(
+    val timestampIso: String,
+    val humidityRh: Int,
+    val temperatureC: Double
+)
+
+enum class QueryMode {
+    DAY, WEEK, YEAR
+}
+
+/**
+ * A high-level BLE client that:
+ * 1. Scans for TP357 devices advertising under the given criteria.
+ * 2. Connects to a specific TP357 device and queries historical data.
+ *
+ * This class uses coroutines for asynchronous operations and Flow for scanning.
+ */
+class Tp357BleClient(
+    private val context: Context,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
 
     companion object {
-        private const val DEVICE_NAME_FILTER = "TP357 \\(\\w{4}\\)"
-        private val deviceFilter = DEVICE_NAME_FILTER.toRegex()
+        private const val TAG = "Tp357BleClient"
 
-        // Characteristic UUIDs
+        private const val DEVICE_NAME_PREFIX = "TP357 (7216)"
+
+        // Service/Characteristic UUIDs (from the provided Python code)
         private val UUID_READ: UUID = UUID.fromString("00010203-0405-0607-0809-0a0b0c0d2b10")
         private val UUID_WRITE: UUID = UUID.fromString("00010203-0405-0607-0809-0a0b0c0d2b11")
 
-        // Commands derived from Python code (similar to day/week/year)
-        private val DAY_COMMAND = byteArrayOf(0xA7.toByte(), 0x01, 0x00, 0x7A.toByte())
-        private val WEEK_COMMAND = byteArrayOf(0xA6.toByte(), 0x01, 0x00, 0x6A.toByte())
-        private val YEAR_COMMAND = byteArrayOf(0xA8.toByte(), 0x01, 0x00, 0x8A.toByte())
-
-        // Immediate (LATEST) reading final packet: 0xC2 (194)
-        // Historical packets start with the command byte (e.g., 0xA6 for week).
+        private const val MAX_RETRIES = 3
     }
 
-    override val readCharacteristicUuid: UUID = UUID_READ
-    override val writeCharacteristicUuid: UUID = UUID_WRITE
-
-    override fun isCompatible(device: Device): Boolean {
-        return device.name?.matches(deviceFilter) == true
+    private val bluetoothManager: BluetoothManager? by lazy {
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     }
 
-    override fun getRequestCommand(mode: ApiMode): ByteArray? {
-        return when (mode) {
-            ApiMode.LATEST -> null     // No command, just wait for immediate reading
-            ApiMode.DELTA -> WEEK_COMMAND
-            ApiMode.HISTORY -> YEAR_COMMAND
-        }
+    private val bluetoothAdapter: BluetoothAdapter? by lazy {
+        bluetoothManager?.adapter
     }
 
-    override suspend fun retrieveData(
-        connectedDevice: ConnectedBleDevice,
-        mode: ApiMode
-    ): List<TemperatureHumidityData> {
-        val readChar = connectedDevice.getCharacteristic(readCharacteristicUuid)
-            ?: return emptyList()
-
-        val writeChar = connectedDevice.getCharacteristic(writeCharacteristicUuid)
-        val command = getRequestCommand(mode)
-
-        // Enable notifications
-        if (!connectedDevice.enableNotifications(readChar)) {
-            Log.e(name, "Failed to enable notifications.")
-            return emptyList()
-        }
-
-        // Send request command if any
-        if (command != null && writeChar != null) {
-            if (!connectedDevice.writeCharacteristic(writeChar, command)) {
-                Log.e(name, "Failed to write command.")
-                connectedDevice.disableNotifications(readChar)
-                return emptyList()
-            }
-        }
-
-        // Collect packets until we see the final packet (0xC2) or timeout.
-        val packets = mutableListOf<ByteArray>()
-        val startTime = System.currentTimeMillis()
-        val timeout = 10_000L // 10 seconds
-
-        // Determine the expected start byte if we're expecting historical packets
-        // For immediate (LATEST) readings, no start byte check needed; we just wait for 0xC2.
-        val expectedCmdByte = command?.get(0)?.toInt()?.and(0xFF)
-
-        loop@ while (System.currentTimeMillis() - startTime < timeout) {
-            val packet = connectedDevice.waitForNotification(2000) ?: break
-
-            val firstByte = packet[0].toInt() and 0xFF
-            // If we get the final packet indicating end
-            if (firstByte == 194) { // 0xC2 final packet
-                // Add final packet if it's LATEST mode (we decode immediate from this)
-                if (mode == ApiMode.LATEST) {
-                    packets.add(packet)
-                }
-                break@loop
-            }
-
-            // Otherwise, if we have a command-based mode (DELTA/HISTORY), check if packet starts with that command byte
-            if (command != null) {
-                if (firstByte == expectedCmdByte) {
-                    packets.add(packet)
-                } else {
-                    // Non-matching packet received, stop reading (this might be extra logic depending on device)
-                    break@loop
-                }
-            } else {
-                // For LATEST, if we didn't get 0xC2 yet and got some random packet, let's just store it
-                // or ignore it. According to the Python snippet, immediate reading is signaled by C2 only.
-                // This device might not send anything else if no command is given.
-                // We'll ignore non-194 packets in LATEST mode.
-            }
-        }
-
-        connectedDevice.disableNotifications(readChar)
-
-        return decodeData(mode, packets)
+    private val scanner: BluetoothLeScanner? by lazy {
+        bluetoothAdapter?.bluetoothLeScanner
     }
 
     /**
-     * Decode data based on mode and packets.
-     * - LATEST: Expect exactly one packet with first byte = 0xC2. Decode immediate reading.
-     * - DELTA/HISTORY: Expect multiple packets starting with command's byte, ended by a 0xC2 packet.
-     *   The final 0xC2 packet is not used for historical data decoding. Only the command-starting packets are decoded.
+     * Scan for TP357 devices. The flow emits discovered advertising packets that match the TP357 pattern.
+     * Use a timeout or external mechanism to stop collecting.
      */
-    private fun decodeData(mode: ApiMode, packets: List<ByteArray>): List<TemperatureHumidityData> {
-        return when (mode) {
-            ApiMode.LATEST -> {
-                // For immediate reading, look for the c2 packet
-                // According to device logic, the final packet with 0xC2 contains the immediate reading data
-                val c2Packet = packets.find { (it[0].toInt() and 0xFF) == 194 }
-                if (c2Packet != null) {
-                    val single = decodeImmediateData(c2Packet)
-                    if (single != null) listOf(single) else emptyList()
-                } else {
-                    emptyList()
-                }
-            }
-            ApiMode.DELTA, ApiMode.HISTORY -> {
-                // Historical modes return multiple packets starting with command byte, ended by c2 packet.
-                // The c2 packet isn't added to historical packets (we ended loop at that point),
-                // so 'packets' should contain only historical data packets.
-                decodeHistoricalData(packets)
-            }
-        }
-    }
+    @ExperimentalCoroutinesApi
+    fun scanForTp357Devices(): Flow<Tp357ScanResult> = callbackFlow {
+        val scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                result?.let { scanResult ->
+                    val deviceName = scanResult.scanRecord?.deviceName
+                    if (deviceName != null && deviceName.contains(DEVICE_NAME_PREFIX)) {
+                        // Parse manufacturer data
+                        val manufacturerData = scanResult.scanRecord?.manufacturerSpecificData
+                        if (manufacturerData != null && manufacturerData.size() > 0) {
+                            for (i in 0 until manufacturerData.size()) {
+                                val key = manufacturerData.keyAt(i)
+                                val value = manufacturerData.valueAt(i)
+                                // According to Python code:
+                                // raw = struct.pack("<H4s", k, v)
+                                // The original parsing: "temp_100mdC, hum_rh, batt_level = struct.unpack('=hBB', raw[1:5])"
+                                // We must reconstruct the same structure:
+                                // Key: 2 bytes (unsigned short)
+                                // Value: 4 bytes
+                                // raw[0:2]: key, raw[2:6]: v
+                                val raw = ByteBuffer.allocate(2 + value.size)
+                                    .order(ByteOrder.LITTLE_ENDIAN)
+                                    .putShort(key.toShort())
+                                    .put(value)
+                                    .array()
 
-    /**
-     * Decode immediate reading data:
-     * When final packet with first byte = 194 (0xC2) is received,
-     * temp = (raw[3] + raw[4]*256)/10
-     * hum = raw[5]
-     */
-    private fun decodeImmediateData(rawData: ByteArray): TemperatureHumidityData? {
-        if (rawData.size < 6) {
-            return null
-        }
-        if (rawData[0].toInt() and 0xFF != 194) {
-            return null
-        }
+                                if (raw.size >= 5) {
+                                    val tempRaw = ByteBuffer.wrap(raw.copyOfRange(1, 3))
+                                        .order(ByteOrder.LITTLE_ENDIAN).short
+                                    val humRh = raw[3].toInt() and 0xFF
+                                    val battLevel = raw[4].toInt() and 0xFF
 
-        val tempRaw = ((rawData[3].toInt() and 0xFF) or ((rawData[4].toInt() and 0xFF) shl 8)).toShort()
-        val temperature = tempRaw / 10.0
-        val humidity = rawData[5].toInt() and 0xFF
-        if (temperature !in -40.0..60.0 || humidity !in 0..100) {
-            return null
-        }
-        return TemperatureHumidityData(temperature, humidity.toDouble())
-    }
-
-    /**
-     * Decode a batch of historical data packets.
-     * Each packet:
-     *  - byte[0]: command (e.g., 0xA7)
-     *  - byte[1..2]: time index (not currently used here)
-     *  - byte[3]: flag (not currently used)
-     *  - For i in [0..4]: byte[4 + i*3 .. 4 + i*3 + 2] is a reading (2 bytes temp, 1 byte hum)
-     * Non-valid readings are recorded as NaN.
-     */
-    private fun decodeHistoricalData(rawPackets: List<ByteArray>): List<TemperatureHumidityData> {
-        val result = mutableListOf<TemperatureHumidityData>()
-        for (packet in rawPackets) {
-            if (packet.size < 19) {
-                // At least one full set of 5 readings (3*5=15 plus 4 header =19)
-                continue
-            }
-
-            // We don't use packet[1..3], we just decode readings
-            for (i in 0 until 5) {
-                val ofs = 4 + i * 3
-                if (ofs + 2 >= packet.size) continue
-                val tLow = packet[ofs].toInt() and 0xFF
-                val tHigh = packet[ofs+1].toInt() and 0xFF
-                val hum = packet[ofs+2].toInt() and 0xFF
-
-                if (tLow == 0xFF && tHigh == 0xFF) {
-                    // Invalid reading
-                    result.add(TemperatureHumidityData(Double.NaN, Double.NaN))
-                } else {
-                    val tempRaw = ((tLow) or (tHigh shl 8)).toShort()
-                    val temperature = tempRaw / 10.0
-                    if (temperature in -40.0..60.0 && hum in 0..100) {
-                        result.add(TemperatureHumidityData(temperature, hum.toDouble()))
-                    } else {
-                        result.add(TemperatureHumidityData(Double.NaN, Double.NaN))
+                                    if (tempRaw <= 1024 && humRh <= 100) {
+                                        val now = System.currentTimeMillis()
+                                        val batteryPercentage = "${((battLevel / 2.0) * 100).toInt()}%"
+                                        val tempC = tempRaw / 10.0
+                                        trySend(
+                                            Tp357ScanResult(
+                                                address = scanResult.device.address,
+                                                time = now,
+                                                rssi = scanResult.rssi,
+                                                humidityRh = humRh,
+                                                temperatureC = tempC,
+                                                batteryLevelPercentage = batteryPercentage
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(TAG, "Scan failed with error: $errorCode")
+            }
         }
-        return result
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        val filters = listOf<ScanFilter>() // or you can create filters if needed
+
+        scanner?.startScan(filters, settings, scanCallback)
+
+        awaitClose {
+            Log.d(TAG, "Stopping BLE scan")
+            scanner?.stopScan(scanCallback)
+        }
+    }
+
+    /**
+     * Query data from a connected TP357 device.
+     * The mode influences the command and timeframe from which data is pulled.
+     */
+    suspend fun queryData(device: BluetoothDevice, mode: QueryMode): List<Tp357DataPoint> {
+        return withContext(ioDispatcher) {
+            retryBleOperation(MAX_RETRIES) {
+                performQuery(device, mode)
+            }
+        }
+    }
+
+    /**
+     * Perform the actual query logic:
+     * - Connect GATT
+     * - Enable notifications on READ characteristic
+     * - Write command to WRITE characteristic
+     * - Collect data until 'fin_evt' is triggered (data[0] == 194)
+     * - Close connection
+     */
+    private suspend fun performQuery(device: BluetoothDevice, mode: QueryMode): List<Tp357DataPoint> {
+        val gattResult = CompletableDeferred<List<Tp357DataPoint>>()
+
+        val (command, timeDeltaMinutes, startOffset) = when (mode) {
+            QueryMode.DAY -> {
+                Triple(byteArrayOf(0xa7.toByte(), 0x00, 0x00, 0x00, 0x00, 0x7a.toByte()),
+                    1, 1) // 1 minute resolution, 1 day offset
+            }
+
+            QueryMode.WEEK -> {
+                Triple(byteArrayOf(0xa6.toByte(), 0x00, 0x00, 0x00, 0x00, 0x6a.toByte()),
+                    60, 7 * 24) // 1 hour resolution, 7 days offset
+            }
+
+            QueryMode.YEAR -> {
+                Triple(byteArrayOf(0xa8.toByte(), 0x00, 0x00, 0x00, 0x00, 0x8a.toByte()),
+                    60, 365 * 24) // 1 hour resolution, 365 days offset
+            }
+        }
+
+        val collectedData = mutableListOf<Tp357DataPoint>()
+
+        val gattCallback = object : BluetoothGattCallback() {
+            private var done = false
+
+            override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                if (status != BluetoothGatt.GATT_SUCCESS || newState != BluetoothGatt.STATE_CONNECTED) {
+                    Log.e(TAG, "Connection failed or disconnected. Status: $status")
+                    if (!done) {
+                        done = true
+                        gattResult.completeExceptionally(RuntimeException("Failed to connect or lost connection."))
+                        gatt.close()
+                    }
+                } else {
+                    // Connected, discover services
+                    gatt.discoverServices()
+                }
+            }
+
+            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    val readChar = gatt.getService(UUID_READ)?.getCharacteristic(UUID_READ)
+                        ?: gatt.services.flatMap { it.characteristics }
+                            .find { it.uuid == UUID_READ }
+                    val writeChar = gatt.getService(UUID_WRITE)?.getCharacteristic(UUID_WRITE)
+                        ?: gatt.services.flatMap { it.characteristics }
+                            .find { it.uuid == UUID_WRITE }
+
+                    if (readChar == null || writeChar == null) {
+                        Log.e(TAG, "Required characteristics not found")
+                        gattResult.completeExceptionally(RuntimeException("Characteristics not found"))
+                        gatt.close()
+                        return
+                    }
+
+                    // Enable notifications
+                    gatt.setCharacteristicNotification(readChar, true)
+                    val desc = readChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+                    desc?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    gatt.writeDescriptor(desc)
+                } else {
+                    Log.e(TAG, "Service discovery failed: $status")
+                    gattResult.completeExceptionally(RuntimeException("Service discovery failed"))
+                    gatt.close()
+                }
+            }
+
+            override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS && descriptor.characteristic.uuid == UUID_READ) {
+                    // Now write command to the WRITE characteristic
+                    val writeChar = gatt.getService(UUID_WRITE)?.getCharacteristic(UUID_WRITE)
+                        ?: run {
+                            Log.e(TAG, "Write characteristic not found after descriptor write.")
+                            gattResult.completeExceptionally(RuntimeException("Write characteristic not found"))
+                            gatt.close()
+                            return
+                        }
+                    writeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    writeChar.value = command
+                    gatt.writeCharacteristic(writeChar)
+                } else {
+                    Log.e(TAG, "Failed to write descriptor or unknown descriptor write.")
+                    gattResult.completeExceptionally(RuntimeException("Descriptor write failed"))
+                    gatt.close()
+                }
+            }
+
+            override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    Log.e(TAG, "Failed to write command to device.")
+                    if (!done) {
+                        done = true
+                        gattResult.completeExceptionally(RuntimeException("Command write failed"))
+                        gatt.close()
+                    }
+                }
+                // Command was sent, now we wait for notifications (onCharacteristicChanged).
+            }
+
+            override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+                val data = characteristic.value
+                if (data.isEmpty()) return
+
+                // According to the Python code:
+                // if data[0] == 194 (0xC2), it signals end of data
+                // else if data[0] == command[0], parse data points
+                if (data[0].toInt() == 0xC2) {
+                    // End of data
+                    if (!done) {
+                        done = true
+                        gattResult.complete(collectedData.toList())
+                        gatt.disconnect()
+                        gatt.close()
+                    }
+                    return
+                }
+
+                // Parse data if it matches the initial command byte
+                if (data[0] == command[0]) {
+                    // raw = struct.unpack("h", data[1:3])[0]
+                    val rawIndex = ByteBuffer.wrap(data, 1, 2)
+                        .order(ByteOrder.LITTLE_ENDIAN)
+                        .short.toInt()
+
+                    // We have 5 sets of measurements, each 3 bytes: (temp_100mdC(2 bytes), hum_rh(1 byte))
+                    // start offset 4, length 3 * 5 = 15 bytes
+                    for (i in 0 until 5) {
+                        val start = 4 + i * 3
+                        if (start + 3 > data.size) break
+                        val tempRaw = ByteBuffer.wrap(data, start, 2)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .short.toInt()
+
+                        val humRh = data[start + 2].toInt() and 0xFF
+
+                        // Validate
+                        if (tempRaw <= 1024 && humRh <= 100) {
+                            // The Python code computes timestamps by offsetting a t0 by raw indexes and increments.
+                            // For simplicity, we just use a rough approximation here or replicate logic:
+                            // mode 'day': t0 = now - 1 day, each step 1 minute
+                            // mode 'week': t0 = now - 7 days, each step 1 hour
+                            // mode 'year': t0 = now - 365 days, each step 1 hour
+                            val now = System.currentTimeMillis()
+                            val stepsFromStart = (5 * (rawIndex - 1) + i)
+                            val offsetMillis = stepsFromStart * timeDeltaMinutes * 60_000L
+                            // Start offset means how far back we go from now.
+                            val baseTime = now - (startOffset.toLong() * 60 * 60 * 1000L)
+                            val dataTime = baseTime + offsetMillis
+
+                            val tempC = tempRaw / 10.0
+                            val isoTime = java.time.Instant.ofEpochMilli(dataTime)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime()
+                                .toString()
+
+                            collectedData.add(
+                                Tp357DataPoint(
+                                    timestampIso = isoTime,
+                                    humidityRh = humRh,
+                                    temperatureC = tempC
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+                // Not used, we rely on notifications
+            }
+        }
+
+        val gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+
+        return gattResult.await()
+    }
+
+    /**
+     * Retry a BLE operation up to n times if it fails.
+     */
+    private suspend fun <T> retryBleOperation(retries: Int, block: suspend () -> T): T {
+        var currentAttempt = 0
+        var lastException: Throwable? = null
+
+        while (currentAttempt < retries) {
+            try {
+                return block()
+            } catch (e: Throwable) {
+                lastException = e
+                Log.w(TAG, "BLE operation failed, retrying... (${retries - currentAttempt - 1} retries left)", e)
+                currentAttempt++
+            }
+        }
+
+        throw lastException ?: RuntimeException("Unknown BLE operation failure")
     }
 }
