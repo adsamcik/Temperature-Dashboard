@@ -13,13 +13,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -29,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.temperaturedashboard.R
+import com.adsamcik.temperaturedashboard.data.TemperatureUnit
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
 import com.adsamcik.temperaturedashboard.ui.models.DeviceDetailsViewModel
 import com.adsamcik.temperaturedashboard.ui.state.DeviceDetailsState
@@ -53,26 +59,51 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceDetailsScreen(
-    device: com.adsamcik.temperaturedashboard.data.ViewDevice?,
+    onNavigateBack: () -> Unit = {},
     viewModel: DeviceDetailsViewModel = hiltViewModel()
 ) {
+    val device by viewModel.device.collectAsStateWithLifecycle()
+
     if (device == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = stringResource(R.string.device_not_found),
-                style = MaterialTheme.typography.bodyLarge
-            )
+            CircularProgressIndicator()
         }
         return
     }
 
+    val currentDevice = device!!
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
-    val deviceName = device.device.name ?: stringResource(R.string.unknown_device)
+    val temperatureUnit by viewModel.temperatureUnit.collectAsStateWithLifecycle()
+    val deviceName = currentDevice.device.name ?: stringResource(R.string.unknown_device)
     val deviceNameDescription = stringResource(R.string.cd_device_name, deviceName)
+    val deleteDeviceDescription = stringResource(R.string.cd_delete_device)
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.delete_device_title)) },
+            text = { Text(stringResource(R.string.delete_device_message, deviceName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    viewModel.deleteDevice()
+                    onNavigateBack()
+                }) {
+                    Text(stringResource(R.string.btn_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.btn_cancel))
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -80,23 +111,48 @@ fun DeviceDetailsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = deviceName,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.semantics {
-                contentDescription = deviceNameDescription
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = deviceName,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = deviceNameDescription
+                    }
+            )
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = deleteDeviceDescription,
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
-        )
+        }
         Text(
-            text = stringResource(R.string.label_mac, device.device.macAddress),
+            text = stringResource(R.string.label_mac, currentDevice.device.macAddress),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        device.decoder?.name?.let {
+        currentDevice.decoder?.name?.let {
             Text(
                 text = stringResource(R.string.label_type, it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            FilterChip(
+                selected = temperatureUnit == TemperatureUnit.FAHRENHEIT,
+                onClick = { viewModel.toggleTemperatureUnit() },
+                label = { Text(temperatureUnit.symbol()) }
             )
         }
 
@@ -120,6 +176,7 @@ fun DeviceDetailsScreen(
                 ConnectedContent(
                     state = state,
                     isRefreshing = isRefreshing,
+                    temperatureUnit = temperatureUnit,
                     onRefresh = { viewModel.refreshData() },
                     onRefreshButton = { viewModel.connect() }
                 )
@@ -144,15 +201,14 @@ fun DeviceDetailsScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    val displayTemp = temperatureUnit.convert(state.latestTemperature)
+                                    val formattedTemp = "%.1f%s".format(displayTemp, temperatureUnit.symbol())
                                     val currentTemperatureDescription = stringResource(
                                         R.string.cd_current_temperature_value,
                                         state.latestTemperature
                                     )
                                     Text(
-                                        text = stringResource(
-                                            R.string.format_temperature_celsius,
-                                            state.latestTemperature
-                                        ),
+                                        text = formattedTemp,
                                         style = MaterialTheme.typography.headlineLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -237,7 +293,7 @@ fun DeviceDetailsScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(state.readings.take(50)) { reading ->
-                            ReadingRow(reading)
+                            ReadingRow(reading, temperatureUnit)
                         }
                     }
                 }
@@ -300,6 +356,7 @@ private fun ConnectingContent(onCancel: () -> Unit) {
 private fun ConnectedContent(
     state: DeviceDetailsState.Connected,
     isRefreshing: Boolean,
+    temperatureUnit: TemperatureUnit,
     onRefresh: () -> Unit,
     onRefreshButton: () -> Unit
 ) {
@@ -323,15 +380,14 @@ private fun ConnectedContent(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val displayTemp = temperatureUnit.convert(state.latestTemperature)
+                        val formattedTemp = "%.1f%s".format(displayTemp, temperatureUnit.symbol())
                         val currentTemperatureDescription = stringResource(
                             R.string.cd_current_temperature_value,
                             state.latestTemperature
                         )
                         Text(
-                            text = stringResource(
-                                R.string.format_temperature_celsius,
-                                state.latestTemperature
-                            ),
+                            text = formattedTemp,
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -397,7 +453,7 @@ private fun ConnectedContent(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(state.readings.take(50)) { reading ->
-                    ReadingRow(reading)
+                    ReadingRow(reading, temperatureUnit)
                 }
             }
         }
@@ -475,11 +531,9 @@ private fun ErrorContent(
 }
 
 @Composable
-private fun ReadingRow(reading: TemperatureReading) {
-    val dateFormat = SimpleDateFormat(
-        stringResource(R.string.format_history_timestamp),
-        Locale.getDefault()
-    )
+private fun ReadingRow(reading: TemperatureReading, temperatureUnit: TemperatureUnit) {
+    val pattern = stringResource(R.string.format_history_timestamp)
+    val dateFormat = remember(pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
     val temperatureReadingDescription = stringResource(
         R.string.cd_temperature_reading,
         reading.temperature
@@ -488,6 +542,7 @@ private fun ReadingRow(reading: TemperatureReading) {
         R.string.cd_humidity_reading,
         reading.humidity
     )
+    val formattedTemp = "%.1f%s".format(temperatureUnit.convert(reading.temperature), temperatureUnit.symbol())
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -500,7 +555,7 @@ private fun ReadingRow(reading: TemperatureReading) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = stringResource(R.string.format_temperature_celsius, reading.temperature),
+            text = formattedTemp,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.semantics {
                 contentDescription = temperatureReadingDescription

@@ -1,6 +1,5 @@
 package com.adsamcik.temperaturedashboard.data
 
-import android.bluetooth.le.ScanResult
 import com.adsamcik.temperaturedashboard.networking.DeviceDiscoveryManager.DiscoveredDevice
 import com.adsamcik.temperaturedashboard.storage.Device
 

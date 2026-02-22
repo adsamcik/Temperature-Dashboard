@@ -3,6 +3,7 @@ package com.adsamcik.temperaturedashboard
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,7 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         setContent {
             val navController = rememberNavController()
@@ -102,7 +104,8 @@ class MainActivity : ComponentActivity() {
                         NavigationGraph(
                             navController = navController,
                             innerPadding = innerPadding,
-                            mainViewModel = mainViewModel
+                            mainViewModel = mainViewModel,
+                            snackbarHostState = snackbarHostState
                         )
                     }
                 }
@@ -116,7 +119,8 @@ class MainActivity : ComponentActivity() {
 fun NavigationGraph(
     navController: NavHostController,
     innerPadding: PaddingValues,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    snackbarHostState: SnackbarHostState
 ) {
     NavHost(
         navController = navController,
@@ -128,14 +132,17 @@ fun NavigationGraph(
             MainScreen(
                 mainViewModel = mainViewModel,
                 addDeviceViewModel = addDeviceViewModel,
-                navController = navController
+                snackbarHostState = snackbarHostState,
+                onDeviceSelected = { macAddress ->
+                    navController.navigate("device_details/$macAddress")
+                }
             )
         }
 
         composable("device_details/{deviceId}") { backStackEntry ->
-            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
-            val device = mainViewModel.getDeviceByMac(deviceId)
-            DeviceDetailsScreen(device = device)
+            DeviceDetailsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }
@@ -193,7 +200,9 @@ fun AddDeviceDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val sortedDevices = devices.sortedByDescending { it.decoder != null }
+                val sortedDevices = remember(devices) {
+                    devices.sortedByDescending { it.decoder != null }
+                }
 
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),

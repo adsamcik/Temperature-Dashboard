@@ -1,6 +1,5 @@
 package com.adsamcik.temperaturedashboard.networking
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.content.Context
@@ -130,10 +129,11 @@ class BleDeviceConnector(
                 }
             }
 
-            if (temperature != null) {
+            val standardTemperature = temperature
+            if (standardTemperature != null) {
                 return listOf(
                     TemperatureHumidityData(
-                        temperature = temperature!!,
+                        temperature = standardTemperature,
                         humidity = humidity ?: 0.0
                     )
                 )

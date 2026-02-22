@@ -2,14 +2,11 @@ package com.adsamcik.temperaturedashboard.networking
 
 import com.adsamcik.temperaturedashboard.data.TemperatureHumidityData
 import com.adsamcik.temperaturedashboard.storage.Device
-import kotlinx.coroutines.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
 
-class Tp357BleClient(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-) : BleDeviceHandler {
+class Tp357BleClient : BleDeviceHandler {
 
     override val name: String = "ThermoPro TP357"
     override val iconRes: Int? = null  // Add an icon resource if you have one
@@ -130,7 +127,6 @@ class Tp357BleClient(
     }
 
     companion object {
-        private const val TAG = "Tp357BleClient"
         private val UUID_READ: UUID = UUID.fromString("00010203-0405-0607-0809-0a0b0c0d2b10")
         private val UUID_WRITE: UUID = UUID.fromString("00010203-0405-0607-0809-0a0b0c0d2b11")
     }

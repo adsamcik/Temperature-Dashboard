@@ -15,8 +15,6 @@ import java.util.UUID
 import kotlin.coroutines.resume
 
 class ConnectedBleDevice {
-    private val TAG = "ConnectedBleDevice"
-
     private val notificationChannel = Channel<ByteArray>(capacity = 64)
     private val operationMutex = Mutex()
 

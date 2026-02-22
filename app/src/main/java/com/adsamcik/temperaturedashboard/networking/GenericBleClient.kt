@@ -27,7 +27,6 @@ class GenericBleClient(
 
     companion object {
         private const val TAG = "GenericBleClient"
-        private const val MAX_RETRIES = 3
         private const val ANALYSIS_DURATION_MS = 10_000L // 10 seconds of analysis
     }
 
@@ -67,14 +66,14 @@ class GenericBleClient(
                 delay(ANALYSIS_DURATION_MS)
                 
                 // Get confirmed protocols
-                analysis.protocols.addAll(protocolCollector.getConfirmedProtocols())
+                analysis.addProtocols(protocolCollector.getConfirmedProtocols())
                 
                 gatt.disconnect()
                 gatt.close()
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error analyzing device", e)
-                analysis.errors.add(e.message ?: "Unknown error")
+                analysis.addError(e.message ?: "Unknown error")
             }
             
             analysis
@@ -91,7 +90,7 @@ class GenericBleClient(
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 gatt.services?.forEach { service ->
-                    analysis.discoveredServices[service.uuid] = service.characteristics.map { it.uuid }
+                    analysis.addDiscoveredService(service.uuid, service.characteristics.map { it.uuid })
                 }
             }
         }
@@ -263,14 +262,19 @@ class GenericBleClient(
                     tempChar != null -> ProtocolType.TEMPERATURE
                     else -> ProtocolType.UNKNOWN
                 }
-                analysis.protocols.add(ConfirmedProtocol(
-                    serviceUuid = essService.uuid,
-                    characteristicUuid = tempChar?.uuid ?: humChar!!.uuid,
-                    pattern = "STANDARD_ESS",
-                    confidence = 1.0,
-                    dataType = dataType
-                ))
-                return true
+                val characteristicUuid = tempChar?.uuid ?: humChar?.uuid
+                if (characteristicUuid != null) {
+                    analysis.addProtocol(
+                        ConfirmedProtocol(
+                            serviceUuid = essService.uuid,
+                            characteristicUuid = characteristicUuid,
+                            pattern = "STANDARD_ESS",
+                            confidence = 1.0,
+                            dataType = dataType
+                        )
+                    )
+                    return true
+                }
             }
         }
 
@@ -279,13 +283,15 @@ class GenericBleClient(
         if (htpService != null) {
             val tempMeasurement = htpService.getCharacteristic(UUID.fromString("00002A1C-0000-1000-8000-00805f9b34fb"))
             if (tempMeasurement != null) {
-                analysis.protocols.add(ConfirmedProtocol(
-                    serviceUuid = htpService.uuid,
-                    characteristicUuid = tempMeasurement.uuid,
-                    pattern = "STANDARD_HTP",
-                    confidence = 1.0,
-                    dataType = ProtocolType.TEMPERATURE
-                ))
+                analysis.addProtocol(
+                    ConfirmedProtocol(
+                        serviceUuid = htpService.uuid,
+                        characteristicUuid = tempMeasurement.uuid,
+                        pattern = "STANDARD_HTP",
+                        confidence = 1.0,
+                        dataType = ProtocolType.TEMPERATURE
+                    )
+                )
                 return true
             }
         }
@@ -333,10 +339,30 @@ class GenericBleClient(
  * Represents the analysis results of a BLE device.
  */
 data class DeviceAnalysis(
-    val discoveredServices: MutableMap<UUID, List<UUID>> = mutableMapOf(),
-    val protocols: MutableList<ConfirmedProtocol> = mutableListOf(),
-    val errors: MutableList<String> = mutableListOf()
+    private val mutableDiscoveredServices: MutableMap<UUID, List<UUID>> = mutableMapOf(),
+    private val mutableProtocols: MutableList<ConfirmedProtocol> = mutableListOf(),
+    private val mutableErrors: MutableList<String> = mutableListOf()
 ) {
+    val discoveredServices: Map<UUID, List<UUID>> get() = mutableDiscoveredServices
+    val protocols: List<ConfirmedProtocol> get() = mutableProtocols
+    val errors: List<String> get() = mutableErrors
+
+    internal fun addDiscoveredService(serviceUuid: UUID, characteristicUuids: List<UUID>) {
+        mutableDiscoveredServices[serviceUuid] = characteristicUuids
+    }
+
+    internal fun addProtocol(protocol: ConfirmedProtocol) {
+        mutableProtocols.add(protocol)
+    }
+
+    internal fun addProtocols(protocols: List<ConfirmedProtocol>) {
+        mutableProtocols.addAll(protocols)
+    }
+
+    internal fun addError(error: String) {
+        mutableErrors.add(error)
+    }
+
     fun findServiceForCharacteristic(characteristicUuid: UUID): UUID? {
         return discoveredServices.entries.firstOrNull { (_, characteristics) ->
             characteristics.contains(characteristicUuid)
