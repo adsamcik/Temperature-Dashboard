@@ -1,57 +1,75 @@
 package com.adsamcik.temperaturedashboard.ui.models
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.temperaturedashboard.data.ViewDevice
 import com.adsamcik.temperaturedashboard.data.toViewDevice
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
+import com.adsamcik.temperaturedashboard.ui.state.MainScreenState
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-/**
- * A ViewModel that manages devices stored in the local database.
- */
-class MainViewModel(private val deviceRepository: DeviceRepository) : ViewModel() {
-    val addedDevices = mutableStateOf<List<ViewDevice>>(emptyList())
-    val showAddDeviceDialog = mutableStateOf(false)
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val deviceRepository: DeviceRepository
+) : ViewModel() {
+    private val _uiState = MutableStateFlow<MainScreenState>(MainScreenState.Loading)
+    val uiState: StateFlow<MainScreenState> = _uiState.asStateFlow()
+
+    private val _showAddDeviceDialog = MutableStateFlow(false)
+    val showAddDeviceDialog: StateFlow<Boolean> = _showAddDeviceDialog.asStateFlow()
+
+    private val _devices = mutableListOf<ViewDevice>()
 
     init {
-        // Load devices from the database on initialization.
+        loadDevices()
+    }
+
+    private fun loadDevices() {
         viewModelScope.launch {
-            val devices = deviceRepository.getAllDevices()
-            addedDevices.value = devices.map { it.toViewDevice() }
+            _uiState.value = MainScreenState.Loading
+            try {
+                val devices = deviceRepository.getAllDevices().map { it.toViewDevice() }
+                _devices.clear()
+                _devices.addAll(devices)
+                _uiState.value = if (devices.isEmpty()) MainScreenState.Empty else MainScreenState.Success(devices)
+            } catch (e: Exception) {
+                _uiState.value = MainScreenState.Error(e.message ?: "Failed to load devices")
+            }
         }
     }
 
     fun onAddDeviceClicked() {
-        showAddDeviceDialog.value = true
+        _showAddDeviceDialog.value = true
     }
 
     fun dismissAddDeviceDialog() {
-        showAddDeviceDialog.value = false
+        _showAddDeviceDialog.value = false
     }
 
     fun addDevice(device: ViewDevice) {
         viewModelScope.launch {
-            val list = addedDevices.value.toMutableList()
-            if (list.none { it.device.macAddress == device.device.macAddress }) {
-                list.add(device)
-                addedDevices.value = list
-
-                // Save the device to the database
+            if (_devices.none { it.device.macAddress == device.device.macAddress }) {
                 deviceRepository.addDevice(device.device)
+                _devices.add(device)
+                _uiState.value = MainScreenState.Success(_devices.toList())
             }
         }
     }
 
     fun removeDevice(device: ViewDevice) {
         viewModelScope.launch {
-            val list = addedDevices.value.toMutableList()
-            list.removeAll { it.device == device.device }
-            addedDevices.value = list
-
-            // Remove the device from the database
             deviceRepository.deleteDevice(device.device)
+            _devices.removeAll { it.device.macAddress == device.device.macAddress }
+            _uiState.value = if (_devices.isEmpty()) MainScreenState.Empty else MainScreenState.Success(_devices.toList())
         }
+    }
+
+    fun getDeviceByMac(macAddress: String): ViewDevice? {
+        return _devices.find { it.device.macAddress == macAddress }
     }
 }

@@ -5,9 +5,14 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Device::class], version = 1, exportSchema = false)
+@Database(
+    entities = [Device::class, TemperatureReading::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class DeviceDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
+    abstract fun readingDao(): ReadingDao
 
     companion object {
         @Volatile
@@ -19,7 +24,7 @@ abstract class DeviceDatabase : RoomDatabase() {
                     context.applicationContext,
                     DeviceDatabase::class.java,
                     "device_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance
             }

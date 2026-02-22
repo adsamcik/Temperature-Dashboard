@@ -5,27 +5,24 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 
-class ConnectedBleDevice(private val gatt: BluetoothGatt) {
+class ConnectedBleDevice(val gatt: BluetoothGatt) {
     private val TAG = "ConnectedBleDevice"
     private val ioDispatcher = Dispatchers.IO
 
-    // A single CompletableDeferred for demonstration of receiving one notification.
-    // For continuous notifications, consider a Channel or SharedFlow.
     private var notificationData = CompletableDeferred<ByteArray?>()
 
-    // Maps for pending operations
-    private val readContinuations = mutableMapOf<UUID, Continuation<ByteArray?>>()
-    private val writeContinuations = mutableMapOf<UUID, Continuation<Boolean>>()
-    private val descriptorContinuations = mutableMapOf<UUID, Continuation<Boolean>>()
+    private val readContinuations = mutableMapOf<UUID, CancellableContinuation<ByteArray?>>()
+    private val writeContinuations = mutableMapOf<UUID, CancellableContinuation<Boolean>>()
+    private val descriptorContinuations = mutableMapOf<UUID, CancellableContinuation<Boolean>>()
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onCharacteristicChanged(
@@ -69,13 +66,6 @@ class ConnectedBleDevice(private val gatt: BluetoothGatt) {
         }
     }
 
-    init {
-        // In a real scenario, you should supply gattCallback when connecting:
-        // device.connectGatt(context, false, gattCallback)
-        // Here we assume gatt already has this callback. If not, you'd need reflection or
-        // to ensure the callback is set at connection time.
-    }
-
     fun close() {
         gatt.close()
     }
@@ -89,8 +79,10 @@ class ConnectedBleDevice(private val gatt: BluetoothGatt) {
     suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray? = withContext(ioDispatcher) {
         suspendCancellableCoroutine { continuation ->
             val uuid = characteristic.uuid
-            // Store the continuation, so we can resume it in onCharacteristicRead
             readContinuations[uuid] = continuation
+            continuation.invokeOnCancellation {
+                readContinuations.remove(uuid)?.resume(null)
+            }
             if (!gatt.readCharacteristic(characteristic)) {
                 readContinuations.remove(uuid)?.resume(null)
             }
@@ -101,9 +93,11 @@ class ConnectedBleDevice(private val gatt: BluetoothGatt) {
         suspendCancellableCoroutine { continuation ->
             val uuid = characteristic.uuid
             writeContinuations[uuid] = continuation
+            continuation.invokeOnCancellation {
+                writeContinuations.remove(uuid)?.resume(false)
+            }
             characteristic.value = data
             if (!gatt.writeCharacteristic(characteristic)) {
-                // If writeCharacteristic returned false immediately, remove and resume false
                 writeContinuations.remove(uuid)?.resume(false)
             }
         }
@@ -119,6 +113,9 @@ class ConnectedBleDevice(private val gatt: BluetoothGatt) {
 
         suspendCancellableCoroutine { continuation ->
             descriptorContinuations[descriptor.uuid] = continuation
+            continuation.invokeOnCancellation {
+                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
+            }
             if (!gatt.writeDescriptor(descriptor)) {
                 descriptorContinuations.remove(descriptor.uuid)?.resume(false)
             }
@@ -135,6 +132,9 @@ class ConnectedBleDevice(private val gatt: BluetoothGatt) {
 
         suspendCancellableCoroutine { continuation ->
             descriptorContinuations[descriptor.uuid] = continuation
+            continuation.invokeOnCancellation {
+                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
+            }
             if (!gatt.writeDescriptor(descriptor)) {
                 descriptorContinuations.remove(descriptor.uuid)?.resume(false)
             }

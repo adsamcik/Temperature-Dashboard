@@ -1,7 +1,7 @@
 package com.adsamcik.temperaturedashboard.decoders
 
 import com.adsamcik.temperaturedashboard.networking.BleDeviceHandler
-import com.adsamcik.temperaturedashboard.networking.ThermoProTP357Handler
+import com.adsamcik.temperaturedashboard.networking.Tp357BleClient
 import com.adsamcik.temperaturedashboard.storage.Device
 
 /**
@@ -9,10 +9,13 @@ import com.adsamcik.temperaturedashboard.storage.Device
  */
 object DecoderProvider {
     private val decoders = mutableListOf<BleDeviceHandler>(
-        ThermoProTP357Handler()
+        Tp357BleClient()
     )
 
     fun getDecoderForDevice(device: Device): BleDeviceHandler? {
-        return decoders.firstOrNull { it.isCompatible(device) }
+        // Try to find a decoder that's compatible with this device
+        return decoders.firstOrNull { decoder -> 
+            decoder.isCompatible(device)
+        }
     }
 }

@@ -20,4 +20,8 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
     suspend fun deleteDeviceByMac(macAddress: String) = withContext(Dispatchers.IO) {
         deviceDao.deleteDeviceByMac(macAddress)
     }
+
+    suspend fun getDeviceByMac(macAddress: String): Device? = withContext(Dispatchers.IO) {
+        deviceDao.getDeviceByMac(macAddress)
+    }
 }

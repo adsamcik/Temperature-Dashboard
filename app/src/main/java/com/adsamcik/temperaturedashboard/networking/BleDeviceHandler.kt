@@ -12,6 +12,11 @@ interface BleDeviceHandler {
     val writeCharacteristicUuid: UUID
 
     /**
+     * Returns true if this handler can decode data from the given device.
+     */
+    fun isCompatible(device: Device): Boolean
+
+    /**
      * Returns the command (if any) to request data for the given mode.
      * If no command is needed, return null.
      */

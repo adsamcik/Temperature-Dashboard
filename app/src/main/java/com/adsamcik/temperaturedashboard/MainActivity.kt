@@ -34,57 +34,55 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.adsamcik.temperaturedashboard.data.ViewDevice
-import com.adsamcik.temperaturedashboard.storage.DeviceDatabase
-import com.adsamcik.temperaturedashboard.storage.DeviceRepository
 import com.adsamcik.temperaturedashboard.ui.models.AddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.models.MainViewModel
-import com.adsamcik.temperaturedashboard.ui.models.MockAddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.screens.DeviceDetailsScreen
 import com.adsamcik.temperaturedashboard.ui.screens.MainScreen
 import com.adsamcik.temperaturedashboard.ui.theme.TemperatureDashboardTheme
+import dagger.hilt.android.AndroidEntryPoint
 
-
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize your ViewModels here if needed
-        val mainViewModel = MainViewModel(DeviceRepository(DeviceDatabase.getDatabase(this).deviceDao()))
-        val addDeviceViewModel = AddDeviceViewModel(applicationContext)
-
         setContent {
             val navController = rememberNavController()
+            val mainViewModel: MainViewModel = hiltViewModel()
+
             TemperatureDashboardTheme {
-                // Keep your Scaffold at the top level
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     floatingActionButton = {
-                        FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
+                        if (currentRoute == "main_screen") {
+                            FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
+                            }
                         }
                     }
                 ) { innerPadding ->
-                    // Pass innerPadding to the NavigationGraph so screens can use it
                     NavigationGraph(
                         navController = navController,
                         innerPadding = innerPadding,
-                        mainViewModel = mainViewModel,
-                        addDeviceViewModel = addDeviceViewModel
+                        mainViewModel = mainViewModel
                     )
                 }
             }
@@ -97,8 +95,7 @@ class MainActivity : ComponentActivity() {
 fun NavigationGraph(
     navController: NavHostController,
     innerPadding: PaddingValues,
-    mainViewModel: MainViewModel,
-    addDeviceViewModel: AddDeviceViewModel
+    mainViewModel: MainViewModel
 ) {
     NavHost(
         navController = navController,
@@ -106,7 +103,7 @@ fun NavigationGraph(
         modifier = Modifier.padding(innerPadding)
     ) {
         composable("main_screen") {
-            // Pass ViewModels and padding down to MainScreen
+            val addDeviceViewModel: AddDeviceViewModel = hiltViewModel()
             MainScreen(
                 mainViewModel = mainViewModel,
                 addDeviceViewModel = addDeviceViewModel,
@@ -116,7 +113,7 @@ fun NavigationGraph(
 
         composable("device_details/{deviceId}") { backStackEntry ->
             val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
-            val device = mainViewModel.addedDevices.value.find { it.device.macAddress == deviceId }
+            val device = mainViewModel.getDeviceByMac(deviceId)
             DeviceDetailsScreen(device = device)
         }
     }
@@ -132,7 +129,7 @@ fun AddDeviceDialog(
         viewModel.startScanning()
     }
 
-    val devices by viewModel.discoveredDevices.collectAsState()
+    val devices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -246,16 +243,4 @@ fun DeviceListItem(
             )
         }
     }
-}
-
-@Preview(showBackground = true, widthDp = 400, heightDp = 600)
-@Composable
-fun MainScreenFullPreview() {
-    val mainViewModel = MainViewModel(DeviceRepository(DeviceDatabase.getDatabase(LocalContext.current).deviceDao()))
-    val addDeviceViewModel = MockAddDeviceViewModel(LocalContext.current)
-
-    // Simulate the dialog being open
-    mainViewModel.showAddDeviceDialog.value = true
-    val navController = rememberNavController()
-    MainScreen(mainViewModel = mainViewModel, addDeviceViewModel = addDeviceViewModel, navController = navController)
 }
