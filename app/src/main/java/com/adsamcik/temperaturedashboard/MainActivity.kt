@@ -30,14 +30,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -54,6 +60,7 @@ import com.adsamcik.temperaturedashboard.ui.models.MainViewModel
 import com.adsamcik.temperaturedashboard.ui.screens.DeviceDetailsScreen
 import com.adsamcik.temperaturedashboard.ui.screens.MainScreen
 import com.adsamcik.temperaturedashboard.ui.permissions.RequireBluetoothPermissions
+import com.adsamcik.temperaturedashboard.ui.SnackbarManager
 import com.adsamcik.temperaturedashboard.ui.theme.TemperatureDashboardTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -70,16 +77,27 @@ class MainActivity : ComponentActivity() {
                 RequireBluetoothPermissions {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
+                    val snackbarHostState = remember { SnackbarHostState() }
+
+                    LaunchedEffect(Unit) {
+                        SnackbarManager.messages.collect { message ->
+                            snackbarHostState.showSnackbar(message)
+                        }
+                    }
 
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
+                        snackbarHost = { SnackbarHost(snackbarHostState) },
                         floatingActionButton = {
-                            if (currentRoute == "main_screen") {
-                                FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
-                                }
-                            }
-                        }
+                             if (currentRoute == "main_screen") {
+                                 FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
+                                     Icon(
+                                         imageVector = Icons.Default.Add,
+                                         contentDescription = stringResource(R.string.cd_add_device)
+                                     )
+                                 }
+                             }
+                         }
                     ) { innerPadding ->
                         NavigationGraph(
                             navController = navController,
@@ -149,20 +167,29 @@ fun AddDeviceDialog(
                     .background(MaterialTheme.colorScheme.surface),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val closeDialogDescription = stringResource(R.string.cd_close_dialog_button)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Add Device",
+                        text = stringResource(R.string.title_add_device),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = { onDismiss() }) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    IconButton(
+                        onClick = { onDismiss() },
+                        modifier = Modifier.semantics {
+                            contentDescription = closeDialogDescription
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = closeDialogDescription
+                        )
                     }
                 }
 
                 HorizontalDivider()
 
-                Text(text = "Scanning for devices...")
+                Text(text = stringResource(R.string.state_scanning))
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -181,7 +208,7 @@ fun AddDeviceDialog(
                     onClick = { onDismiss() },
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         }
@@ -194,22 +221,27 @@ fun DeviceListItem(
     device: ViewDevice,
     onDeviceSelected: (ViewDevice) -> Unit
 ) {
+    val deviceName = device.device.name ?: stringResource(R.string.unknown_device)
+    val deviceNameDescription = stringResource(R.string.cd_device_name, deviceName)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onDeviceSelected(device) }
-            .padding(8.dp),
+            .padding(8.dp)
+            .semantics {
+                contentDescription = deviceNameDescription
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
         device.decoder?.iconRes?.let { iconRes ->
             Icon(
                 painter = painterResource(id = iconRes),
-                contentDescription = null,
+                contentDescription = stringResource(R.string.cd_device_icon),
                 modifier = Modifier.size(24.dp)
             )
         } ?: Icon(
             imageVector = Icons.Default.Warning,
-            contentDescription = "No icon",
+            contentDescription = stringResource(R.string.cd_warning_icon),
             modifier = Modifier.size(24.dp),
             tint = if (device.decoder != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
         )
@@ -218,9 +250,12 @@ fun DeviceListItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = device.device.name ?: "Unknown Device",
+                text = deviceName,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics {
+                    contentDescription = deviceNameDescription
+                }
             )
             Text(
                 text = device.device.macAddress,
@@ -229,7 +264,7 @@ fun DeviceListItem(
             )
             device.decoder?.name?.let {
                 Text(
-                    text = "Type: $it",
+                    text = stringResource(R.string.label_type, it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -241,7 +276,7 @@ fun DeviceListItem(
         if (device.decoder != null) {
             Icon(
                 imageVector = Icons.Default.CheckCircle,
-                contentDescription = "Compatible Device",
+                contentDescription = stringResource(R.string.cd_compatible_device),
                 tint = MaterialTheme.colorScheme.primary
             )
         }

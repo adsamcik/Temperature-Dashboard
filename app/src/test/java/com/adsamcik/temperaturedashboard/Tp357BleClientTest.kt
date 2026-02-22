@@ -73,25 +73,21 @@ class Tp357BleClientTest {
     fun `getRequestCommand returns correct bytes for LATEST`() {
         val command = client.getRequestCommand(ApiMode.LATEST)
         assertNotNull(command)
-        assertEquals(6, command!!.size)
-        assertEquals(0xa7.toByte(), command[0])
-        assertEquals(0x7a.toByte(), command[5])
+        assertArrayEquals(byteArrayOf(0xa7.toByte(), 0x00, 0x00, 0x00, 0x00, 0x7a.toByte()), command)
     }
 
     @Test
     fun `getRequestCommand returns correct bytes for DELTA`() {
         val command = client.getRequestCommand(ApiMode.DELTA)
         assertNotNull(command)
-        assertEquals(0xa6.toByte(), command!![0])
-        assertEquals(0x6a.toByte(), command[5])
+        assertArrayEquals(byteArrayOf(0xa6.toByte(), 0x00, 0x00, 0x00, 0x00, 0x6a.toByte()), command)
     }
 
     @Test
     fun `getRequestCommand returns correct bytes for HISTORY`() {
         val command = client.getRequestCommand(ApiMode.HISTORY)
         assertNotNull(command)
-        assertEquals(0xa8.toByte(), command!![0])
-        assertEquals(0x8a.toByte(), command[5])
+        assertArrayEquals(byteArrayOf(0xa8.toByte(), 0x00, 0x00, 0x00, 0x00, 0x8a.toByte()), command)
     }
 
     @Test
@@ -105,7 +101,7 @@ class Tp357BleClientTest {
     }
 
     @Test
-    fun validateChecksum_validPacket_returnsTrue() {
+    fun `validateChecksum valid packet returns true`() {
         val packet = createDataPacket(
             pageIndex = 7,
             points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
@@ -115,7 +111,7 @@ class Tp357BleClientTest {
     }
 
     @Test
-    fun validateChecksum_corruptedPacket_returnsFalse() {
+    fun `validateChecksum corrupted packet returns false`() {
         val packet = createDataPacket(
             pageIndex = 7,
             points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
@@ -127,7 +123,7 @@ class Tp357BleClientTest {
     }
 
     @Test
-    fun parseDataPacket_validFivePointData_returnsAllPoints() {
+    fun `parseDataPacket valid five point data returns all points`() {
         val packet = createDataPacket(
             pageIndex = 12,
             points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
@@ -141,10 +137,12 @@ class Tp357BleClientTest {
         assertEquals(50.0, parsed[0].humidity, 0.0001)
         assertEquals(23.5, parsed[4].temperature, 0.0001)
         assertEquals(54.0, parsed[4].humidity, 0.0001)
+        assertEquals(22.5, parsed[2].temperature, 0.0001)
+        assertEquals(52.0, parsed[2].humidity, 0.0001)
     }
 
     @Test
-    fun parsePageIndex_validHeader_extractsLittleEndianIndex() {
+    fun `parsePageIndex valid header extracts little-endian index`() {
         val packet = createDataPacket(
             pageIndex = 513,
             points = listOf(200 to 40, 210 to 41, 220 to 42, 230 to 43, 240 to 44)
@@ -156,7 +154,7 @@ class Tp357BleClientTest {
     }
 
     @Test
-    fun parseDataPacket_negativeTemperature_handlesSignedInt16() {
+    fun `parseDataPacket negative temperature handles signed Int16`() {
         val packet = createDataPacket(
             pageIndex = 1,
             points = listOf(-55 to 60, 120 to 61, 130 to 62, 140 to 63, 150 to 64)
@@ -167,6 +165,71 @@ class Tp357BleClientTest {
         assertNotNull(parsed)
         assertEquals(-5.5, parsed!![0].temperature, 0.0001)
         assertEquals(60.0, parsed[0].humidity, 0.0001)
+    }
+
+    @Test
+    fun `parseDataPacket boundary temp 600 is included`() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(600 to 50, 200 to 40, 200 to 40, 200 to 40, 200 to 40)
+        )
+        val parsed = client.parseDataPacket(packet)
+        assertNotNull(parsed)
+        assertEquals(60.0, parsed!![0].temperature, 0.0001)
+    }
+
+    @Test
+    fun `parseDataPacket boundary temp negative 200 is included`() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(-200 to 50, 200 to 40, 200 to 40, 200 to 40, 200 to 40)
+        )
+        val parsed = client.parseDataPacket(packet)
+        assertNotNull(parsed)
+        assertEquals(-20.0, parsed!![0].temperature, 0.0001)
+    }
+
+    @Test
+    fun `parseDataPacket boundary humidity 100 is included`() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(200 to 100, 200 to 40, 200 to 40, 200 to 40, 200 to 40)
+        )
+        val parsed = client.parseDataPacket(packet)
+        assertNotNull(parsed)
+        assertEquals(100.0, parsed!![0].humidity, 0.0001)
+    }
+
+    @Test
+    fun `parseDataPacket out of range temp excluded`() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(601 to 50, 200 to 40, 200 to 40, 200 to 40, 200 to 40)
+        )
+        val parsed = client.parseDataPacket(packet)
+        assertNotNull(parsed)
+        assertEquals(4, parsed!!.size)
+    }
+
+    @Test
+    fun `parseDataPacket corrupted checksum returns null`() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(200 to 40, 200 to 40, 200 to 40, 200 to 40, 200 to 40)
+        ).apply {
+            this[lastIndex] = (this[lastIndex] + 1).toByte()
+        }
+        assertNull(client.parseDataPacket(packet))
+    }
+
+    @Test
+    fun `validateChecksum empty array returns false`() {
+        assertFalse(client.validateChecksum(byteArrayOf()))
+    }
+
+    @Test
+    fun `validateChecksum single byte returns false`() {
+        assertFalse(client.validateChecksum(byteArrayOf(0x00)))
     }
 
     private fun createDataPacket(pageIndex: Int, points: List<Pair<Int, Int>>): ByteArray {

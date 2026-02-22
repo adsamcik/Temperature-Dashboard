@@ -8,7 +8,8 @@ sealed interface DeviceDetailsState {
     data class Connected(
         val readings: List<TemperatureReading>,
         val latestTemperature: Double? = null,
-        val latestHumidity: Double? = null
+        val latestHumidity: Double? = null,
+        val lastUpdatedAt: Long = System.currentTimeMillis()
     ) : DeviceDetailsState
     data class PassiveMonitoring(
         val readings: List<TemperatureReading>,

@@ -29,6 +29,10 @@ class MainViewModel @Inject constructor(
         loadDevices()
     }
 
+    fun retryLoadDevices() {
+        loadDevices()
+    }
+
     private fun loadDevices() {
         viewModelScope.launch {
             _uiState.value = MainScreenState.Loading

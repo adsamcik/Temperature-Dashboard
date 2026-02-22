@@ -16,9 +16,11 @@ import com.adsamcik.temperaturedashboard.storage.Device
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
 import com.adsamcik.temperaturedashboard.storage.ReadingRepository
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
+import com.adsamcik.temperaturedashboard.ui.SnackbarManager
 import com.adsamcik.temperaturedashboard.ui.state.DeviceDetailsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,9 @@ class DeviceDetailsViewModel @Inject constructor(
 
     private val _connectionState = MutableStateFlow<DeviceDetailsState>(DeviceDetailsState.Idle)
     private val _historicalReadings = MutableStateFlow<List<TemperatureReading>>(emptyList())
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
     val uiState: StateFlow<DeviceDetailsState> = combine(_connectionState, _historicalReadings) { connectionState, readings ->
         when (connectionState) {
             is DeviceDetailsState.Connecting -> DeviceDetailsState.Connecting
@@ -62,6 +67,7 @@ class DeviceDetailsViewModel @Inject constructor(
     private var device: ViewDevice? = null
     private var connector: BleDeviceConnector? = null
     private var discoveryManager: DeviceDiscoveryManager? = null
+    private var connectJob: Job? = null
 
     init {
         loadDevice()
@@ -88,7 +94,8 @@ class DeviceDetailsViewModel @Inject constructor(
     @SuppressLint("MissingPermission")
     fun connect() {
         val dev = device ?: return
-        viewModelScope.launch {
+        connectJob?.cancel()
+        connectJob = viewModelScope.launch {
             _connectionState.value = DeviceDetailsState.Connecting
             try {
                 val bleConnector = BleDeviceConnector(context, dev)
@@ -117,9 +124,62 @@ class DeviceDetailsViewModel @Inject constructor(
                     _connectionState.value = DeviceDetailsState.Error("Failed to connect to device")
                 }
             } catch (e: Exception) {
-                _connectionState.value = DeviceDetailsState.Error(e.message ?: "Connection error")
+                val message = when {
+                    e.message?.contains("timeout", ignoreCase = true) == true -> "Connection timed out"
+                    e.message?.contains("not found", ignoreCase = true) == true -> "Device not found"
+                    else -> e.message ?: "Connection error"
+                }
+                _connectionState.value = DeviceDetailsState.Error(message)
+                SnackbarManager.showMessage(message)
                 connector?.disconnect()
                 connector = null
+            }
+        }
+    }
+
+    fun cancelConnection() {
+        connectJob?.cancel()
+        connectJob = null
+        connector?.disconnect()
+        connector = null
+        _connectionState.value = DeviceDetailsState.Idle
+    }
+
+    @SuppressLint("MissingPermission")
+    fun refreshData() {
+        val dev = device ?: return
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                val bleConnector = BleDeviceConnector(context, dev)
+                connector = bleConnector
+                val connected = bleConnector.connect()
+                if (connected) {
+                    val data = bleConnector.readData(ApiMode.LATEST)
+                    bleConnector.disconnect()
+                    connector = null
+
+                    if (data.isNotEmpty()) {
+                        val readings = data.map { reading ->
+                            TemperatureReading(
+                                deviceMac = deviceMac,
+                                temperature = reading.temperature,
+                                humidity = reading.humidity,
+                                timestamp = reading.timestamp
+                            )
+                        }
+                        readingRepository.saveReadings(readings)
+                        _connectionState.value = DeviceDetailsState.Connected(readings = emptyList())
+                    }
+                } else {
+                    SnackbarManager.showMessage("Failed to refresh data")
+                }
+            } catch (e: Exception) {
+                SnackbarManager.showMessage(e.message ?: "Refresh failed")
+                connector?.disconnect()
+                connector = null
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
@@ -139,6 +199,7 @@ class DeviceDetailsViewModel @Inject constructor(
             override fun onScanError(message: String) {
                 viewModelScope.launch {
                     _connectionState.value = DeviceDetailsState.Error(message)
+                    SnackbarManager.showMessage(message)
                 }
             }
 

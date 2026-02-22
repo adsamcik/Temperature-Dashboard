@@ -12,22 +12,58 @@ import java.util.UUID
 class ConnectedBleDeviceTest {
 
     @Test
-    fun operations_gattNull_returnNullOrFalse() = runTest {
-        val connectedDevice = ConnectedBleDevice()
-        val serviceUuid = UUID.randomUUID()
-        val characteristicUuid = UUID.randomUUID()
-        val characteristic = BluetoothGattCharacteristic(characteristicUuid, 0, 0)
-
-        assertNull(connectedDevice.getService(serviceUuid))
-        assertNull(connectedDevice.getCharacteristic(serviceUuid, characteristicUuid))
-        assertNull(connectedDevice.readCharacteristic(characteristic))
-        assertFalse(connectedDevice.writeCharacteristic(characteristic, byteArrayOf(0x01)))
-        assertFalse(connectedDevice.enableNotifications(characteristic))
-        assertFalse(connectedDevice.disableNotifications(characteristic))
+    fun `getService returns null when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        assertNull(device.getService(UUID.fromString("00000001-0000-0000-0000-000000000000")))
     }
 
     @Test
-    fun waitForNotification_timeout_returnsNullWithoutHanging() = runTest {
+    fun `getCharacteristic returns null when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        assertNull(device.getCharacteristic(
+            UUID.fromString("00000001-0000-0000-0000-000000000000"),
+            UUID.fromString("00000002-0000-0000-0000-000000000000")
+        ))
+    }
+
+    @Test
+    fun `readCharacteristic returns null when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        val characteristic = BluetoothGattCharacteristic(
+            UUID.fromString("00000002-0000-0000-0000-000000000000"), 0, 0
+        )
+        assertNull(device.readCharacteristic(characteristic))
+    }
+
+    @Test
+    fun `writeCharacteristic returns false when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        val characteristic = BluetoothGattCharacteristic(
+            UUID.fromString("00000002-0000-0000-0000-000000000000"), 0, 0
+        )
+        assertFalse(device.writeCharacteristic(characteristic, byteArrayOf(0x01)))
+    }
+
+    @Test
+    fun `enableNotifications returns false when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        val characteristic = BluetoothGattCharacteristic(
+            UUID.fromString("00000002-0000-0000-0000-000000000000"), 0, 0
+        )
+        assertFalse(device.enableNotifications(characteristic))
+    }
+
+    @Test
+    fun `disableNotifications returns false when gatt is null`() = runTest {
+        val device = ConnectedBleDevice()
+        val characteristic = BluetoothGattCharacteristic(
+            UUID.fromString("00000002-0000-0000-0000-000000000000"), 0, 0
+        )
+        assertFalse(device.disableNotifications(characteristic))
+    }
+
+    @Test
+    fun `waitForNotification timeout returns null without hanging`() = runTest {
         val connectedDevice = ConnectedBleDevice()
 
         val result = withTimeout(1_000) {

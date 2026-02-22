@@ -9,30 +9,44 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
 import com.adsamcik.temperaturedashboard.ui.models.DeviceDetailsViewModel
 import com.adsamcik.temperaturedashboard.ui.state.DeviceDetailsState
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceDetailsScreen(
     device: com.adsamcik.temperaturedashboard.data.ViewDevice?,
@@ -49,6 +63,7 @@ fun DeviceDetailsScreen(
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -86,96 +101,16 @@ fun DeviceDetailsScreen(
             }
 
             is DeviceDetailsState.Connecting -> {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CircularProgressIndicator()
-                        Text("Connecting to device...")
-                    }
-                }
+                ConnectingContent(onCancel = { viewModel.cancelConnection() })
             }
 
             is DeviceDetailsState.Connected -> {
-                if (state.latestTemperature != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Current Reading",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "%.1f°C".format(state.latestTemperature),
-                                        style = MaterialTheme.typography.headlineLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Text(
-                                        text = "Temperature",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                                if (state.latestHumidity != null) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = "%.0f%%".format(state.latestHumidity),
-                                            style = MaterialTheme.typography.headlineLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                        Text(
-                                            text = "Humidity",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = { viewModel.connect() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Refresh Data")
-                }
-
-                if (state.readings.isNotEmpty()) {
-                    Text(
-                        text = "History (${state.readings.size} readings)",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(state.readings.take(50)) { reading ->
-                            ReadingRow(reading)
-                        }
-                    }
-                }
+                ConnectedContent(
+                    state = state,
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refreshData() },
+                    onRefreshButton = { viewModel.connect() }
+                )
             }
 
             is DeviceDetailsState.PassiveMonitoring -> {
@@ -267,29 +202,212 @@ fun DeviceDetailsScreen(
             }
 
             is DeviceDetailsState.Error -> {
-                Card(
+                ErrorContent(
+                    message = state.message,
+                    onRetry = { viewModel.connect() },
+                    onTryPassive = { viewModel.startPassiveMonitoring() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectingContent(onCancel: () -> Unit) {
+    var elapsedSeconds by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            elapsedSeconds++
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Text("Connecting to device...")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Elapsed: ${elapsedSeconds}s",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = onCancel,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Cancel")
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConnectedContent(
+    state: DeviceDetailsState.Connected,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    onRefreshButton: () -> Unit
+) {
+    if (state.latestTemperature != null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Current Reading",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "%.1f°C".format(state.latestTemperature),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Temperature",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.connect() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Retry")
+                    if (state.latestHumidity != null) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "%.0f%%".format(state.latestHumidity),
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = "Humidity",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    LastUpdatedText(state.lastUpdatedAt)
+
+    OutlinedButton(
+        onClick = onRefreshButton,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Refresh Data")
+    }
+
+    if (state.readings.isNotEmpty()) {
+        Text(
+            text = "History (${state.readings.size} readings)",
+            style = MaterialTheme.typography.titleMedium
+        )
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+        ) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(state.readings.take(50)) { reading ->
+                    ReadingRow(reading)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LastUpdatedText(lastUpdatedAt: Long) {
+    var displayText by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(lastUpdatedAt) {
+        while (true) {
+            val elapsedMinutes = (System.currentTimeMillis() - lastUpdatedAt) / 60_000
+            displayText = elapsedMinutes
+            delay(30_000L)
+        }
+    }
+
+    val text = when {
+        displayText < 1L -> "Last updated: just now"
+        displayText == 1L -> "Last updated: 1 minute ago"
+        else -> "Last updated: $displayText minutes ago"
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun ErrorContent(
+    message: String,
+    onRetry: () -> Unit,
+    onTryPassive: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Error",
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    Button(
+        onClick = onRetry,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Retry")
+    }
+    TextButton(
+        onClick = onTryPassive,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Try Passive Mode")
     }
 }
 

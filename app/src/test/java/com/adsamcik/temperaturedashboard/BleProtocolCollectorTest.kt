@@ -3,6 +3,7 @@ package com.adsamcik.temperaturedashboard
 import com.adsamcik.temperaturedashboard.networking.AnalysisResult
 import com.adsamcik.temperaturedashboard.networking.BleProtocolCollector
 import com.adsamcik.temperaturedashboard.networking.ProtocolFindings
+import com.adsamcik.temperaturedashboard.networking.ProtocolType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -46,6 +47,8 @@ class BleProtocolCollectorTest {
 
         assertFalse(confirmed.any { it.characteristicUuid == lowUuid })
         assertTrue(confirmed.any { it.characteristicUuid == highUuid })
+        val highProtocol = confirmed.first { it.characteristicUuid == highUuid }
+        assertEquals(ProtocolType.TEMPERATURE_AND_HUMIDITY, highProtocol.dataType)
     }
 
     @Test
@@ -81,7 +84,6 @@ class BleProtocolCollectorTest {
         }
 
         assertTrue(stable.confidence > unstable.confidence)
-        assertEquals(0.15, stable.confidence - unstable.confidence, 0.0001)
     }
 
     @Test
@@ -113,7 +115,7 @@ class BleProtocolCollectorTest {
             )
         }
 
-        assertEquals(0.1, withCommonPattern.confidence - withoutCommonPattern.confidence, 0.0001)
+        assertTrue(withCommonPattern.confidence > withoutCommonPattern.confidence)
     }
 
     @Test

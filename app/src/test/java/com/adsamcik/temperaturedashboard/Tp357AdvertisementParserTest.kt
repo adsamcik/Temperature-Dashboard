@@ -23,7 +23,10 @@ class Tp357AdvertisementParserTest {
     }
 
     @Test
-    fun parseRawAdvertisement_validTenthsData_returnsReading() {
+    fun parseRawAdvertisement_lowTempRaw_parsesViaHundredths() {
+        // Note: tempRaw=235 → 235/100.0 = 2.35°C (in range [-30,70]), so hundredths path is taken.
+        // The tenths fallback path is unreachable with current constants because
+        // the hundredths range [-3000,7000] fully contains the tenths range [-300,700].
         val raw = createRawPacket(tempRaw = 235, humidity = 42, batteryRaw = 1)
 
         val reading = Tp357AdvertisementParser.parseRawAdvertisement(raw, "CC:DD", -50)
@@ -65,6 +68,9 @@ class Tp357AdvertisementParserTest {
         val reading = Tp357AdvertisementParser.parseRawAdvertisement(raw, "AA:BB", -60)
 
         assertNotNull(reading)
+        assertEquals(21.5, reading!!.temperature, 0.0001)
+        assertEquals(55.0, reading.humidity, 0.0001)
+        assertEquals(100, reading.batteryPercent)
     }
 
     @Test
@@ -105,6 +111,16 @@ class Tp357AdvertisementParserTest {
         assertEquals(21.75, converted.temperature, 0.0001)
         assertEquals(48.0, converted.humidity, 0.0001)
         assertEquals(123456L, converted.timestamp)
+    }
+
+    @Test
+    fun parseRawAdvertisement_humidity100_isAccepted() {
+        val raw = createRawPacket(tempRaw = 2200, humidity = 100, batteryRaw = 1)
+
+        val reading = Tp357AdvertisementParser.parseRawAdvertisement(raw, "AA:BB", -60)
+
+        assertNotNull(reading)
+        assertEquals(100.0, reading!!.humidity, 0.0001)
     }
 
     private fun createRawPacket(

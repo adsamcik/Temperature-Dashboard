@@ -21,10 +21,14 @@ import org.junit.Test
 class MainViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var fakeDao: FakeDeviceDao
+    private lateinit var repo: DeviceRepository
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        fakeDao = FakeDeviceDao()
+        repo = DeviceRepository(fakeDao, testDispatcher)
     }
 
     @After
@@ -34,8 +38,6 @@ class MainViewModelTest {
 
     @Test
     fun `initial state is Loading then Empty when no devices`() = runTest(testDispatcher) {
-        val fakeDao = FakeDeviceDao()
-        val repo = DeviceRepository(fakeDao, testDispatcher)
         val viewModel = MainViewModel(repo)
 
         assertEquals(MainScreenState.Loading, viewModel.uiState.value)
@@ -47,11 +49,9 @@ class MainViewModelTest {
 
     @Test
     fun `initial state becomes Success when devices exist`() = runTest(testDispatcher) {
-        val fakeDao = FakeDeviceDao()
         fakeDao.devices.add(
             Device("AA:BB:CC:DD:EE:FF", "Test Device", null, null, 0L)
         )
-        val repo = DeviceRepository(fakeDao, testDispatcher)
         val viewModel = MainViewModel(repo)
 
         advanceUntilIdle()
@@ -63,8 +63,6 @@ class MainViewModelTest {
 
     @Test
     fun `showAddDeviceDialog toggles correctly`() = runTest(testDispatcher) {
-        val fakeDao = FakeDeviceDao()
-        val repo = DeviceRepository(fakeDao, testDispatcher)
         val viewModel = MainViewModel(repo)
 
         assertFalse(viewModel.showAddDeviceDialog.value)
@@ -78,12 +76,32 @@ class MainViewModelTest {
 
     @Test
     fun `getDeviceByMac returns null when not found`() = runTest(testDispatcher) {
-        val fakeDao = FakeDeviceDao()
-        val repo = DeviceRepository(fakeDao, testDispatcher)
         val viewModel = MainViewModel(repo)
         advanceUntilIdle()
 
         assertNull(viewModel.getDeviceByMac("XX:XX:XX:XX:XX:XX"))
+    }
+
+    @Test
+    fun `getDeviceByMac returns device when found`() = runTest(testDispatcher) {
+        fakeDao.devices.add(Device("AA:BB:CC:DD:EE:FF", "Test Device", null, null, 0L))
+        val viewModel = MainViewModel(repo)
+        advanceUntilIdle()
+
+        val device = viewModel.getDeviceByMac("AA:BB:CC:DD:EE:FF")
+        assertNotNull(device)
+        assertEquals("AA:BB:CC:DD:EE:FF", device!!.device.macAddress)
+    }
+
+    @Test
+    fun `loadDevices error produces Error state`() = runTest(testDispatcher) {
+        fakeDao.errorToThrow = RuntimeException("DB locked")
+        val viewModel = MainViewModel(repo)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is MainScreenState.Error)
+        assertEquals("DB locked", (state as MainScreenState.Error).message)
     }
 }
 
@@ -92,6 +110,7 @@ class MainViewModelTest {
  */
 class FakeDeviceDao : DeviceDao {
     val devices = mutableListOf<Device>()
+    var errorToThrow: Exception? = null
 
     override suspend fun insertDevice(device: Device) {
         devices.removeAll { it.macAddress == device.macAddress }
@@ -103,6 +122,7 @@ class FakeDeviceDao : DeviceDao {
     }
 
     override suspend fun getAllDevices(): List<Device> {
+        errorToThrow?.let { throw it }
         return devices.toList()
     }
 
