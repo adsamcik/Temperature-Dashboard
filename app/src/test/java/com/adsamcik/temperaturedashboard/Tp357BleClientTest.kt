@@ -103,4 +103,90 @@ class Tp357BleClientTest {
     fun `iconRes is null`() {
         assertNull(client.iconRes)
     }
+
+    @Test
+    fun validateChecksum_validPacket_returnsTrue() {
+        val packet = createDataPacket(
+            pageIndex = 7,
+            points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
+        )
+
+        assertTrue(client.validateChecksum(packet))
+    }
+
+    @Test
+    fun validateChecksum_corruptedPacket_returnsFalse() {
+        val packet = createDataPacket(
+            pageIndex = 7,
+            points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
+        ).apply {
+            this[lastIndex] = (this[lastIndex] + 1).toByte()
+        }
+
+        assertFalse(client.validateChecksum(packet))
+    }
+
+    @Test
+    fun parseDataPacket_validFivePointData_returnsAllPoints() {
+        val packet = createDataPacket(
+            pageIndex = 12,
+            points = listOf(215 to 50, 220 to 51, 225 to 52, 230 to 53, 235 to 54)
+        )
+
+        val parsed = client.parseDataPacket(packet)
+
+        assertNotNull(parsed)
+        assertEquals(5, parsed!!.size)
+        assertEquals(21.5, parsed[0].temperature, 0.0001)
+        assertEquals(50.0, parsed[0].humidity, 0.0001)
+        assertEquals(23.5, parsed[4].temperature, 0.0001)
+        assertEquals(54.0, parsed[4].humidity, 0.0001)
+    }
+
+    @Test
+    fun parsePageIndex_validHeader_extractsLittleEndianIndex() {
+        val packet = createDataPacket(
+            pageIndex = 513,
+            points = listOf(200 to 40, 210 to 41, 220 to 42, 230 to 43, 240 to 44)
+        )
+
+        val pageIndex = client.parsePageIndex(packet)
+
+        assertEquals(513, pageIndex)
+    }
+
+    @Test
+    fun parseDataPacket_negativeTemperature_handlesSignedInt16() {
+        val packet = createDataPacket(
+            pageIndex = 1,
+            points = listOf(-55 to 60, 120 to 61, 130 to 62, 140 to 63, 150 to 64)
+        )
+
+        val parsed = client.parseDataPacket(packet)
+
+        assertNotNull(parsed)
+        assertEquals(-5.5, parsed!![0].temperature, 0.0001)
+        assertEquals(60.0, parsed[0].humidity, 0.0001)
+    }
+
+    private fun createDataPacket(pageIndex: Int, points: List<Pair<Int, Int>>): ByteArray {
+        require(points.size == 5)
+
+        val bytes = mutableListOf<Byte>()
+        bytes.add(0xA7.toByte())
+        bytes.add((pageIndex and 0xFF).toByte())
+        bytes.add(((pageIndex ushr 8) and 0xFF).toByte())
+        bytes.add(0x00)
+
+        points.forEach { (tempRaw, humidity) ->
+            bytes.add((tempRaw and 0xFF).toByte())
+            bytes.add(((tempRaw ushr 8) and 0xFF).toByte())
+            bytes.add((humidity and 0xFF).toByte())
+        }
+
+        val checksum = bytes.fold(0) { acc, byte -> (acc + (byte.toInt() and 0xFF)) and 0xFF }
+        bytes.add(checksum.toByte())
+
+        return bytes.toByteArray()
+    }
 }
