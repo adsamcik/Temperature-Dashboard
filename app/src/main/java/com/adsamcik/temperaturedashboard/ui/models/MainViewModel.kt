@@ -73,6 +73,24 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun removeDeviceFromUi(device: ViewDevice) {
+        _devices.removeAll { it.device.macAddress == device.device.macAddress }
+        _uiState.value = if (_devices.isEmpty()) MainScreenState.Empty else MainScreenState.Success(_devices.toList())
+    }
+
+    fun undoRemoveDevice(device: ViewDevice) {
+        if (_devices.none { it.device.macAddress == device.device.macAddress }) {
+            _devices.add(device)
+            _uiState.value = MainScreenState.Success(_devices.toList())
+        }
+    }
+
+    fun confirmRemoveDevice(device: ViewDevice) {
+        viewModelScope.launch {
+            deviceRepository.deleteDeviceByMac(device.device.macAddress)
+        }
+    }
+
     fun getDeviceByMac(macAddress: String): ViewDevice? {
         return _devices.find { it.device.macAddress == macAddress }
     }

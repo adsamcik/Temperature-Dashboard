@@ -28,4 +28,8 @@ class DeviceRepository(
     suspend fun getDeviceByMac(macAddress: String): Device? = withContext(ioDispatcher) {
         deviceDao.getDeviceByMac(macAddress)
     }
+
+    suspend fun deleteDeviceAndReadings(macAddress: String) = withContext(ioDispatcher) {
+        deviceDao.deleteDeviceByMac(macAddress)
+    }
 }
