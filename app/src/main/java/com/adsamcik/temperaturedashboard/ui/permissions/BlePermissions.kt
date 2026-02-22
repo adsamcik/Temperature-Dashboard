@@ -20,9 +20,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
+import com.adsamcik.temperaturedashboard.R
 
 @Composable
 fun RequireBluetoothPermissions(
@@ -63,16 +65,16 @@ fun RequireBluetoothPermissions(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Bluetooth Permissions Required",
+                text = stringResource(R.string.permissions_bluetooth_required),
                 style = MaterialTheme.typography.titleLarge
             )
             Text(
-                text = "This app needs Bluetooth permissions to scan and connect to temperature sensors.",
+                text = stringResource(R.string.permissions_bluetooth_rationale),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 16.dp)
             )
             Button(onClick = { launcher.launch(permissions) }) {
-                Text("Grant Permissions")
+                Text(stringResource(R.string.btn_grant_permissions))
             }
         }
     }
