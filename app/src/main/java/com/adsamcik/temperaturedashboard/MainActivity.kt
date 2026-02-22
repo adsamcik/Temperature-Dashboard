@@ -53,6 +53,7 @@ import com.adsamcik.temperaturedashboard.ui.models.AddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.models.MainViewModel
 import com.adsamcik.temperaturedashboard.ui.screens.DeviceDetailsScreen
 import com.adsamcik.temperaturedashboard.ui.screens.MainScreen
+import com.adsamcik.temperaturedashboard.ui.permissions.RequireBluetoothPermissions
 import com.adsamcik.temperaturedashboard.ui.theme.TemperatureDashboardTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -66,24 +67,26 @@ class MainActivity : ComponentActivity() {
             val mainViewModel: MainViewModel = hiltViewModel()
 
             TemperatureDashboardTheme {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
+                RequireBluetoothPermissions {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    floatingActionButton = {
-                        if (currentRoute == "main_screen") {
-                            FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        floatingActionButton = {
+                            if (currentRoute == "main_screen") {
+                                FloatingActionButton(onClick = { mainViewModel.onAddDeviceClicked() }) {
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add Device")
+                                }
                             }
                         }
+                    ) { innerPadding ->
+                        NavigationGraph(
+                            navController = navController,
+                            innerPadding = innerPadding,
+                            mainViewModel = mainViewModel
+                        )
                     }
-                ) { innerPadding ->
-                    NavigationGraph(
-                        navController = navController,
-                        innerPadding = innerPadding,
-                        mainViewModel = mainViewModel
-                    )
                 }
             }
         }
