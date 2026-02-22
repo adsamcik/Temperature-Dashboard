@@ -1,6 +1,7 @@
 package com.adsamcik.temperaturedashboard.ui.models
 
 import android.annotation.SuppressLint
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -19,8 +20,10 @@ import com.adsamcik.temperaturedashboard.ui.state.DeviceDetailsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,8 +37,27 @@ class DeviceDetailsViewModel @Inject constructor(
 
     private val deviceMac: String = savedStateHandle.get<String>("deviceId") ?: ""
 
-    private val _uiState = MutableStateFlow<DeviceDetailsState>(DeviceDetailsState.Idle)
-    val uiState: StateFlow<DeviceDetailsState> = _uiState.asStateFlow()
+    private val _connectionState = MutableStateFlow<DeviceDetailsState>(DeviceDetailsState.Idle)
+    private val _historicalReadings = MutableStateFlow<List<TemperatureReading>>(emptyList())
+    val uiState: StateFlow<DeviceDetailsState> = combine(_connectionState, _historicalReadings) { connectionState, readings ->
+        when (connectionState) {
+            is DeviceDetailsState.Connecting -> DeviceDetailsState.Connecting
+            is DeviceDetailsState.Error -> connectionState
+            is DeviceDetailsState.PassiveMonitoring -> connectionState
+            is DeviceDetailsState.Connected, is DeviceDetailsState.Idle -> {
+                if (connectionState is DeviceDetailsState.Connected || readings.isNotEmpty()) {
+                    val latest = readings.firstOrNull()
+                    DeviceDetailsState.Connected(
+                        readings = readings,
+                        latestTemperature = latest?.temperature,
+                        latestHumidity = latest?.humidity
+                    )
+                } else {
+                    DeviceDetailsState.Idle
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, DeviceDetailsState.Idle)
 
     private var device: ViewDevice? = null
     private var connector: BleDeviceConnector? = null
@@ -58,15 +80,7 @@ class DeviceDetailsViewModel @Inject constructor(
     private fun loadHistoricalReadings() {
         viewModelScope.launch {
             readingRepository.getAllReadings(deviceMac).collect { readings ->
-                val currentState = _uiState.value
-                if (currentState is DeviceDetailsState.Connected || readings.isNotEmpty()) {
-                    val latest = readings.firstOrNull()
-                    _uiState.value = DeviceDetailsState.Connected(
-                        readings = readings,
-                        latestTemperature = latest?.temperature,
-                        latestHumidity = latest?.humidity
-                    )
-                }
+                _historicalReadings.value = readings
             }
         }
     }
@@ -75,7 +89,7 @@ class DeviceDetailsViewModel @Inject constructor(
     fun connect() {
         val dev = device ?: return
         viewModelScope.launch {
-            _uiState.value = DeviceDetailsState.Connecting
+            _connectionState.value = DeviceDetailsState.Connecting
             try {
                 val bleConnector = BleDeviceConnector(context, dev)
                 connector = bleConnector
@@ -95,19 +109,15 @@ class DeviceDetailsViewModel @Inject constructor(
                             )
                         }
                         readingRepository.saveReadings(readings)
+                        _connectionState.value = DeviceDetailsState.Connected(readings = emptyList())
                     } else {
-                        val latest = readingRepository.getLatestReading(deviceMac)
-                        _uiState.value = DeviceDetailsState.Connected(
-                            readings = emptyList(),
-                            latestTemperature = latest?.temperature,
-                            latestHumidity = latest?.humidity
-                        )
+                        _connectionState.value = DeviceDetailsState.Connected(readings = emptyList())
                     }
                 } else {
-                    _uiState.value = DeviceDetailsState.Error("Failed to connect to device")
+                    _connectionState.value = DeviceDetailsState.Error("Failed to connect to device")
                 }
             } catch (e: Exception) {
-                _uiState.value = DeviceDetailsState.Error(e.message ?: "Connection error")
+                _connectionState.value = DeviceDetailsState.Error(e.message ?: "Connection error")
                 connector?.disconnect()
                 connector = null
             }
@@ -128,7 +138,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
             override fun onScanError(message: String) {
                 viewModelScope.launch {
-                    _uiState.value = DeviceDetailsState.Error(message)
+                    _connectionState.value = DeviceDetailsState.Error(message)
                 }
             }
 
@@ -143,14 +153,14 @@ class DeviceDetailsViewModel @Inject constructor(
                     )
                     readingRepository.saveReadings(listOf(temperatureReading))
 
-                    val currentState = _uiState.value
+                    val currentState = uiState.value
                     val existingReadings = when (currentState) {
                         is DeviceDetailsState.PassiveMonitoring -> currentState.readings
                         is DeviceDetailsState.Connected -> currentState.readings
                         else -> emptyList()
                     }
-                    _uiState.value = DeviceDetailsState.PassiveMonitoring(
-                        readings = listOf(temperatureReading) + existingReadings,
+                    _connectionState.value = DeviceDetailsState.PassiveMonitoring(
+                        readings = (listOf(temperatureReading) + existingReadings).take(MAX_PASSIVE_MONITORING_READINGS),
                         latestTemperature = reading.temperature,
                         latestHumidity = reading.humidity,
                         batteryPercent = reading.batteryPercent
@@ -160,7 +170,7 @@ class DeviceDetailsViewModel @Inject constructor(
         })
 
         discoveryManager = manager
-        manager.startScan()
+        manager.startScan(ScanSettings.SCAN_MODE_LOW_POWER)
     }
 
     fun stopPassiveMonitoring() {
@@ -172,5 +182,9 @@ class DeviceDetailsViewModel @Inject constructor(
         super.onCleared()
         connector?.disconnect()
         stopPassiveMonitoring()
+    }
+
+    companion object {
+        private const val MAX_PASSIVE_MONITORING_READINGS = 500
     }
 }

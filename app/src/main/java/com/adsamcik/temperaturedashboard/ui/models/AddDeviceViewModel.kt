@@ -1,5 +1,6 @@
 package com.adsamcik.temperaturedashboard.ui.models
 
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,7 @@ class AddDeviceViewModel @Inject constructor(
     fun startScanning() {
         if (!scanning) {
             _discoveredDevices.value = emptyList()
-            scanner.startScan()
+            scanner.startScan(ScanSettings.SCAN_MODE_LOW_LATENCY)
             scanning = true
         }
     }

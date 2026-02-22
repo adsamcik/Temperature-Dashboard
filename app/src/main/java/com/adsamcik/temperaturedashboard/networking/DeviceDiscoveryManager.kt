@@ -4,7 +4,11 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.*
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanRecord
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -140,7 +144,7 @@ class DeviceDiscoveryManager(
      * Make sure permissions and Bluetooth are properly enabled before calling this.
      */
     @SuppressLint("MissingPermission")
-    fun startScan() {
+    fun startScan(scanMode: Int = ScanSettings.SCAN_MODE_LOW_LATENCY) {
         if (isScanning) {
             Log.w(TAG, "Already scanning.")
             return
@@ -163,7 +167,7 @@ class DeviceDiscoveryManager(
         }
 
         val scanSettings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setScanMode(scanMode)
             .build()
 
         // Start scanning without filters to capture all devices.
