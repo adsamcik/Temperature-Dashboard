@@ -6,19 +6,19 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import kotlin.coroutines.resume
 
 class ConnectedBleDevice(val gatt: BluetoothGatt) {
     private val TAG = "ConnectedBleDevice"
-    private val ioDispatcher = Dispatchers.IO
 
-    private var notificationData = CompletableDeferred<ByteArray?>()
+    private val notificationChannel = Channel<ByteArray>(capacity = 64)
+    private val operationMutex = Mutex()
 
     private val readContinuations = mutableMapOf<UUID, CancellableContinuation<ByteArray?>>()
     private val writeContinuations = mutableMapOf<UUID, CancellableContinuation<Boolean>>()
@@ -29,9 +29,7 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic
         ) {
-            if (!notificationData.isCompleted) {
-                notificationData.complete(characteristic.value)
-            }
+            notificationChannel.trySend(characteristic.value)
         }
 
         override fun onCharacteristicRead(
@@ -67,6 +65,7 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
     }
 
     fun close() {
+        notificationChannel.close()
         gatt.close()
     }
 
@@ -76,80 +75,94 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
         return getService(serviceUuid)?.getCharacteristic(charUuid)
     }
 
-    suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray? = withContext(ioDispatcher) {
-        suspendCancellableCoroutine { continuation ->
-            val uuid = characteristic.uuid
-            readContinuations[uuid] = continuation
-            continuation.invokeOnCancellation {
-                readContinuations.remove(uuid)?.resume(null)
-            }
-            if (!gatt.readCharacteristic(characteristic)) {
-                readContinuations.remove(uuid)?.resume(null)
-            }
-        }
-    }
-
-    suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray): Boolean = withContext(ioDispatcher) {
-        suspendCancellableCoroutine { continuation ->
-            val uuid = characteristic.uuid
-            writeContinuations[uuid] = continuation
-            continuation.invokeOnCancellation {
-                writeContinuations.remove(uuid)?.resume(false)
-            }
-            characteristic.value = data
-            if (!gatt.writeCharacteristic(characteristic)) {
-                writeContinuations.remove(uuid)?.resume(false)
+    suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray? =
+        operationMutex.withLock {
+            withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
+                suspendCancellableCoroutine { continuation ->
+                    val uuid = characteristic.uuid
+                    readContinuations[uuid] = continuation
+                    continuation.invokeOnCancellation {
+                        readContinuations.remove(uuid)
+                    }
+                    if (!gatt.readCharacteristic(characteristic)) {
+                        readContinuations.remove(uuid)?.resume(null)
+                    }
+                }
             }
         }
-    }
 
-    suspend fun enableNotifications(characteristic: BluetoothGattCharacteristic): Boolean = withContext(ioDispatcher) {
-        if (!gatt.setCharacteristicNotification(characteristic, true)) {
-            return@withContext false
+    @Suppress("DEPRECATION")
+    suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray): Boolean =
+        operationMutex.withLock {
+            withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
+                suspendCancellableCoroutine<Boolean> { continuation ->
+                    val uuid = characteristic.uuid
+                    writeContinuations[uuid] = continuation
+                    continuation.invokeOnCancellation {
+                        writeContinuations.remove(uuid)
+                    }
+                    characteristic.value = data
+                    if (!gatt.writeCharacteristic(characteristic)) {
+                        writeContinuations.remove(uuid)?.resume(false)
+                    }
+                }
+            } ?: false
         }
 
-        val descriptor = characteristic.descriptors.firstOrNull() ?: return@withContext false
-        descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+    @Suppress("DEPRECATION")
+    suspend fun enableNotifications(characteristic: BluetoothGattCharacteristic): Boolean =
+        operationMutex.withLock {
+            if (!gatt.setCharacteristicNotification(characteristic, true)) {
+                return@withLock false
+            }
 
-        suspendCancellableCoroutine { continuation ->
-            descriptorContinuations[descriptor.uuid] = continuation
-            continuation.invokeOnCancellation {
-                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
-            }
-            if (!gatt.writeDescriptor(descriptor)) {
-                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
-            }
+            val descriptor = characteristic.descriptors.firstOrNull() ?: return@withLock false
+
+            withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
+                suspendCancellableCoroutine<Boolean> { continuation ->
+                    descriptorContinuations[descriptor.uuid] = continuation
+                    continuation.invokeOnCancellation {
+                        descriptorContinuations.remove(descriptor.uuid)
+                    }
+                    descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    if (!gatt.writeDescriptor(descriptor)) {
+                        descriptorContinuations.remove(descriptor.uuid)?.resume(false)
+                    }
+                }
+            } ?: false
         }
-    }
 
-    suspend fun disableNotifications(characteristic: BluetoothGattCharacteristic): Boolean = withContext(ioDispatcher) {
-        if (!gatt.setCharacteristicNotification(characteristic, false)) {
-            return@withContext false
+    @Suppress("DEPRECATION")
+    suspend fun disableNotifications(characteristic: BluetoothGattCharacteristic): Boolean =
+        operationMutex.withLock {
+            if (!gatt.setCharacteristicNotification(characteristic, false)) {
+                return@withLock false
+            }
+
+            val descriptor = characteristic.descriptors.firstOrNull() ?: return@withLock false
+
+            withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
+                suspendCancellableCoroutine<Boolean> { continuation ->
+                    descriptorContinuations[descriptor.uuid] = continuation
+                    continuation.invokeOnCancellation {
+                        descriptorContinuations.remove(descriptor.uuid)
+                    }
+                    descriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                    if (!gatt.writeDescriptor(descriptor)) {
+                        descriptorContinuations.remove(descriptor.uuid)?.resume(false)
+                    }
+                }
+            } ?: false
         }
 
-        val descriptor = characteristic.descriptors.firstOrNull() ?: return@withContext false
-        descriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
-
-        suspendCancellableCoroutine { continuation ->
-            descriptorContinuations[descriptor.uuid] = continuation
-            continuation.invokeOnCancellation {
-                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
-            }
-            if (!gatt.writeDescriptor(descriptor)) {
-                descriptorContinuations.remove(descriptor.uuid)?.resume(false)
-            }
-        }
-    }
-
-    fun resetNotificationData() {
-        notificationData = CompletableDeferred()
-    }
-
-    suspend fun waitForNotification(timeoutMillis: Long = 5000): ByteArray? {
+    suspend fun waitForNotification(timeoutMillis: Long = NOTIFICATION_TIMEOUT_MS): ByteArray? {
         return withTimeoutOrNull(timeoutMillis) {
-            val data = notificationData.await()
-            resetNotificationData()
-            data
+            notificationChannel.receive()
         }
+    }
+
+    companion object {
+        private const val OPERATION_TIMEOUT_MS = 5_000L
+        private const val NOTIFICATION_TIMEOUT_MS = 5_000L
     }
 }

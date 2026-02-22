@@ -23,7 +23,7 @@ class GenericBleClient(
     companion object {
         private const val TAG = "GenericBleClient"
         private const val MAX_RETRIES = 3
-        private const val ANALYSIS_DURATION_MS = 30_000L // 30 seconds of analysis
+        private const val ANALYSIS_DURATION_MS = 10_000L // 10 seconds of analysis
     }
 
     /**
@@ -43,7 +43,14 @@ class GenericBleClient(
                 // Wait for initial connection and service discovery
                 delay(2000)
                 
-                // Start monitoring all characteristics
+                // Check standard BLE profiles first (fast, reliable)
+                if (checkStandardProfiles(gatt, analysis)) {
+                    gatt.disconnect()
+                    gatt.close()
+                    return@withContext analysis
+                }
+                
+                // Fall back to heuristic analysis for non-standard devices
                 gatt.services?.forEach { service ->
                     service.characteristics.forEach { characteristic ->
                         tryEnableNotifications(gatt, characteristic)
@@ -168,10 +175,9 @@ class GenericBleClient(
 
     private fun isLikelyHumidity(data: ByteArray, offset: Int): Boolean {
         if (offset >= data.size) return false
-        
         val value = data[offset].toInt() and 0xFF
-        // Humidity is typically 0-100%
-        return value in 0..100
+        // Humidity 0-100%, but exclude very low values that are likely flags/counters
+        return value in 10..100
     }
 
     private fun extractPotentialTemperature(data: ByteArray): Double? {
@@ -206,23 +212,18 @@ class GenericBleClient(
     }
 
     private fun calculateConfidence(data: ByteArray): Double {
-        // Calculate confidence based on:
-        // 1. Whether we found valid temperature/humidity values
-        // 2. Data length and structure
-        // 3. Presence of common patterns
-        
         var confidence = 0.0
-        
-        // Check if we found valid values
-        if (extractPotentialTemperature(data) != null) confidence += 0.4
-        if (extractPotentialHumidity(data) != null) confidence += 0.4
-        
-        // Check data length (most sensors use 2-20 bytes)
+        val hasTemp = extractPotentialTemperature(data) != null
+        val hasHum = extractPotentialHumidity(data) != null
+
+        if (hasTemp) confidence += 0.3
+        if (hasHum) confidence += 0.2
+        if (hasTemp && hasHum) confidence += 0.1  // Bonus for both
         if (data.size in 2..20) confidence += 0.1
-        
-        // Check for common patterns (e.g., checksum at end)
-        if (hasCommonPatterns(data)) confidence += 0.1
-        
+        if (hasCommonPatterns(data)) confidence += 0.15
+        // Require some minimum data structure
+        if (data.size >= 3) confidence += 0.05
+
         return confidence.coerceIn(0.0, 1.0)
     }
 
@@ -242,6 +243,49 @@ class GenericBleClient(
         // Simple checksum verification
         val sum = data.dropLast(1).sum()
         return (sum and 0xFF) == (data.last().toInt() and 0xFF)
+    }
+
+    private fun checkStandardProfiles(gatt: BluetoothGatt, analysis: DeviceAnalysis): Boolean {
+        // Check for Environmental Sensing Service (0x181A)
+        val essService = gatt.getService(UUID.fromString("0000181A-0000-1000-8000-00805f9b34fb"))
+        if (essService != null) {
+            val tempChar = essService.getCharacteristic(UUID.fromString("00002A6E-0000-1000-8000-00805f9b34fb"))
+            val humChar = essService.getCharacteristic(UUID.fromString("00002A6F-0000-1000-8000-00805f9b34fb"))
+
+            if (tempChar != null || humChar != null) {
+                val dataType = when {
+                    tempChar != null && humChar != null -> ProtocolType.TEMPERATURE_AND_HUMIDITY
+                    tempChar != null -> ProtocolType.TEMPERATURE
+                    else -> ProtocolType.UNKNOWN
+                }
+                analysis.protocols.add(ConfirmedProtocol(
+                    serviceUuid = essService.uuid,
+                    characteristicUuid = tempChar?.uuid ?: humChar!!.uuid,
+                    pattern = "STANDARD_ESS",
+                    confidence = 1.0,
+                    dataType = dataType
+                ))
+                return true
+            }
+        }
+
+        // Check for Health Thermometer Service (0x1809)
+        val htpService = gatt.getService(UUID.fromString("00001809-0000-1000-8000-00805f9b34fb"))
+        if (htpService != null) {
+            val tempMeasurement = htpService.getCharacteristic(UUID.fromString("00002A1C-0000-1000-8000-00805f9b34fb"))
+            if (tempMeasurement != null) {
+                analysis.protocols.add(ConfirmedProtocol(
+                    serviceUuid = htpService.uuid,
+                    characteristicUuid = tempMeasurement.uuid,
+                    pattern = "STANDARD_HTP",
+                    confidence = 1.0,
+                    dataType = ProtocolType.TEMPERATURE
+                ))
+                return true
+            }
+        }
+
+        return false
     }
 
     private suspend fun tryEnableNotifications(

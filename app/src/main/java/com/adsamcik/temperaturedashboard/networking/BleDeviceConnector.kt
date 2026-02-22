@@ -19,6 +19,14 @@ class BleDeviceConnector(
     private val device: ViewDevice,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    companion object {
+        private val ESS_SERVICE_UUID = UUID.fromString("0000181A-0000-1000-8000-00805f9b34fb")
+        private val TEMP_CHAR_UUID = UUID.fromString("00002A6E-0000-1000-8000-00805f9b34fb")
+        private val HUMIDITY_CHAR_UUID = UUID.fromString("00002A6F-0000-1000-8000-00805f9b34fb")
+        private val HTP_SERVICE_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb")
+        private val HTP_TEMP_CHAR_UUID = UUID.fromString("00002A1C-0000-1000-8000-00805f9b34fb")
+    }
+
     private val TAG = "BleDeviceConnector"
     private var connectedDevice: ConnectedBleDevice? = null
     private val genericClient = GenericBleClient(context, ioDispatcher)
@@ -89,7 +97,10 @@ class BleDeviceConnector(
             // Use specific decoder for known device types
             device.decoder.retrieveData(connected, mode)
         } else {
-            // For unknown devices, try generic analysis
+            // Try standard BLE profiles first (fast, reliable)
+            tryStandardProfiles(connected)?.let { return it }
+
+            // Fall back to generic analysis for non-standard devices
             val analysis = genericClient.analyzeDevice(connected.gatt.device)
             
             // If we found a likely protocol, try to use it
@@ -111,6 +122,74 @@ class BleDeviceConnector(
                 }
             } ?: emptyList()
         }
+    }
+
+    private suspend fun tryStandardProfiles(connected: ConnectedBleDevice): List<TemperatureHumidityData>? {
+        // Try ESS (Environmental Sensing Service)
+        val essService = connected.getService(ESS_SERVICE_UUID)
+        if (essService != null) {
+            var temperature: Double? = null
+            var humidity: Double? = null
+
+            essService.getCharacteristic(TEMP_CHAR_UUID)?.let { char ->
+                connected.readCharacteristic(char)?.let { data ->
+                    if (data.size >= 2) {
+                        val raw = ByteBuffer.wrap(data, 0, 2)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .short.toInt()
+                        temperature = raw / 100.0
+                    }
+                }
+            }
+
+            essService.getCharacteristic(HUMIDITY_CHAR_UUID)?.let { char ->
+                connected.readCharacteristic(char)?.let { data ->
+                    if (data.size >= 2) {
+                        val raw = ByteBuffer.wrap(data, 0, 2)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .short.toInt() and 0xFFFF
+                        humidity = raw / 100.0
+                    }
+                }
+            }
+
+            if (temperature != null) {
+                return listOf(
+                    TemperatureHumidityData(
+                        temperature = temperature!!,
+                        humidity = humidity ?: 0.0
+                    )
+                )
+            }
+        }
+
+        // Try HTP (Health Thermometer Profile)
+        val htpService = connected.getService(HTP_SERVICE_UUID)
+        if (htpService != null) {
+            htpService.getCharacteristic(HTP_TEMP_CHAR_UUID)?.let { char ->
+                connected.readCharacteristic(char)?.let { data ->
+                    if (data.size >= 5) {
+                        // IEEE-11073 FLOAT: bytes 1-4 (byte 0 is flags)
+                        val mantissa = (data[1].toInt() and 0xFF) or
+                                ((data[2].toInt() and 0xFF) shl 8) or
+                                ((data[3].toInt() and 0xFF) shl 16)
+                        val exponent = data[4].toInt() // signed int8
+                        val temperature = mantissa * Math.pow(10.0, exponent.toDouble())
+
+                        if (temperature in -40.0..85.0) {
+                            return listOf(
+                                TemperatureHumidityData(
+                                    temperature = temperature,
+                                    humidity = 0.0
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        return null
     }
 
     private fun parseGenericData(data: ByteArray, pattern: String): List<TemperatureHumidityData> {

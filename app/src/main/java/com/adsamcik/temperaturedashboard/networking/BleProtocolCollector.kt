@@ -22,7 +22,7 @@ class BleProtocolCollector {
         
         characteristicFindings.addResult(result)
         
-        if (characteristicFindings.confidence > 0.9) {
+        if (characteristicFindings.confidence > 0.7) {
             characteristicFindings.confirmedPattern = result.pattern
         }
         
@@ -31,10 +31,10 @@ class BleProtocolCollector {
     
     fun getConfirmedProtocols(): List<ConfirmedProtocol> {
         return _protocolFindings.value
-            .filter { it.value.confidence > 0.9 }
+            .filter { it.value.confidence > 0.7 }
             .map { (uuid, findings) ->
                 ConfirmedProtocol(
-                    serviceUuid = null, // Update this logic if serviceUuid is available
+                    serviceUuid = findings.serviceUuid,
                     characteristicUuid = uuid,
                     pattern = findings.confirmedPattern ?: "",
                     confidence = findings.confidence,
@@ -50,9 +50,10 @@ class BleProtocolCollector {
 
 class ProtocolFindings {
     private val results = mutableListOf<AnalysisResult>()
-    private val maxResults = 20
+    private val maxResults = 10
     
     var confirmedPattern: String? = null
+    var serviceUuid: UUID? = null
     val confidence: Double
         get() = calculateConfidence()
     
@@ -66,6 +67,9 @@ class ProtocolFindings {
         results.add(result)
         if (results.size > maxResults) {
             results.removeAt(0)
+        }
+        if (result.serviceUuid != null) {
+            serviceUuid = result.serviceUuid
         }
     }
     
@@ -90,7 +94,25 @@ class ProtocolFindings {
             .map { it.confidence }
             .average()
         
-        return (normalizedConsistency * 0.5 + sampleWeight * 0.2 + averageConfidence * 0.3)
+        val tempValues = results.mapNotNull { it.potentialTemperature }
+        val temporalBonus = if (tempValues.size >= 3) {
+            val range = (tempValues.maxOrNull() ?: 0.0) - (tempValues.minOrNull() ?: 0.0)
+            if (range < 5.0) 0.15 else if (range < 10.0) 0.05 else 0.0
+        } else {
+            0.0
+        }
+
+        val patternBonus = if (
+            mostCommonPattern?.key?.let { pattern ->
+                listOf("TH", "HT", "xTHx", "xTH", "THx").any { pattern.contains(it) }
+            } == true
+        ) {
+            0.1
+        } else {
+            0.0
+        }
+
+        return (normalizedConsistency * 0.35 + sampleWeight * 0.15 + averageConfidence * 0.25 + temporalBonus + patternBonus)
             .coerceIn(0.0, 1.0)
     }
 }

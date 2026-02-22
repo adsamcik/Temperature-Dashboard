@@ -48,12 +48,20 @@ class Tp357BleClient(
             throw IllegalStateException("Failed to write command")
         }
         
-        // Collect data until we receive the end marker (0xC2)
+        // Collect data until we receive the end marker (0xC2) or timeout
         val collectedData = mutableListOf<TemperatureHumidityData>()
+        val seenIndices = mutableSetOf<Int>()
         var done = false
+        var consecutiveNulls = 0
         
         while (!done) {
-            val data = connectedDevice.waitForNotification() ?: break
+            val data = connectedDevice.waitForNotification(timeoutMillis = 5000)
+            if (data == null) {
+                consecutiveNulls++
+                if (consecutiveNulls >= 3) break  // 3 consecutive timeouts = assume done
+                continue
+            }
+            consecutiveNulls = 0
             
             if (data.isEmpty()) continue
             
@@ -64,6 +72,9 @@ class Tp357BleClient(
             
             // Parse data if it matches command byte
             if (data[0] == command[0]) {
+                val index = parsePageIndex(data)
+                if (index != null && !seenIndices.add(index)) continue // skip duplicate page
+
                 parseDataPacket(data)?.let { dataPoints ->
                     collectedData.addAll(dataPoints)
                 }
@@ -73,12 +84,22 @@ class Tp357BleClient(
         return collectedData
     }
 
-    private fun parseDataPacket(data: ByteArray): List<TemperatureHumidityData>? {
-        if (data.size < 4) return null
-        
-        val rawIndex = ByteBuffer.wrap(data, 1, 2)
+    internal fun validateChecksum(data: ByteArray): Boolean {
+        if (data.size < 2) return false
+        val sum = data.dropLast(1).fold(0) { acc, byte -> (acc + (byte.toInt() and 0xFF)) and 0xFF }
+        return sum == (data.last().toInt() and 0xFF)
+    }
+
+    internal fun parsePageIndex(data: ByteArray): Int? {
+        if (data.size < 3) return null
+        return ByteBuffer.wrap(data, 1, 2)
             .order(ByteOrder.LITTLE_ENDIAN)
             .short.toInt()
+    }
+
+    internal fun parseDataPacket(data: ByteArray): List<TemperatureHumidityData>? {
+        if (data.size < 4) return null
+        if (!validateChecksum(data)) return null
         
         val results = mutableListOf<TemperatureHumidityData>()
         
@@ -93,7 +114,8 @@ class Tp357BleClient(
             
             val humRh = data[start + 2].toInt() and 0xFF
             
-            if (tempRaw <= 1024 && humRh <= 100) {
+            // TP357 range: -20°C to 60°C → raw: -200 to 600
+            if (tempRaw in -200..600 && humRh in 0..100) {
                 val tempC = tempRaw / 10.0
                 results.add(
                     TemperatureHumidityData(
