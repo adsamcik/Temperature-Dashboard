@@ -5,14 +5,12 @@ import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.content.Context
 import android.util.Log
-import androidx.annotation.RequiresPermission
 import com.adsamcik.temperaturedashboard.data.TemperatureHumidityData
 import com.adsamcik.temperaturedashboard.data.ViewDevice
 import kotlinx.coroutines.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
-import kotlin.coroutines.resume
 
 class BleDeviceConnector(
     private val context: Context,
@@ -31,7 +29,7 @@ class BleDeviceConnector(
     private var connectedDevice: ConnectedBleDevice? = null
     private val genericClient = GenericBleClient(context, ioDispatcher)
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+    @SuppressLint("MissingPermission")
     suspend fun connect(): Boolean {
         return withContext(ioDispatcher) {
             try {
@@ -46,41 +44,16 @@ class BleDeviceConnector(
                     return@withContext false
                 }
 
-                val gatt = suspendCancellableCoroutine<BluetoothGatt?> { continuation ->
-                    val gattCallback = object : BluetoothGattCallback() {
-                        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-                            if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
-                                gatt.discoverServices()
-                            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                                if (continuation.isActive) {
-                                    continuation.resume(null)
-                                }
-                            }
-                        }
+                // Create ConnectedBleDevice FIRST so its callback handles ALL GATT events
+                val bleDevice = ConnectedBleDevice()
+                val gattObj = btDevice.connectGatt(context, false, bleDevice.callback, BluetoothDevice.TRANSPORT_LE)
 
-                        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                            if (status == BluetoothGatt.GATT_SUCCESS) {
-                                if (continuation.isActive) {
-                                    continuation.resume(gatt)
-                                }
-                            } else {
-                                if (continuation.isActive) {
-                                    continuation.resume(null)
-                                }
-                            }
-                        }
-                    }
-
-                    val gattObj = btDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-                    continuation.invokeOnCancellation {
-                        gattObj.close()
-                    }
-                }
-
-                if (gatt != null) {
-                    connectedDevice = ConnectedBleDevice(gatt)
+                val success = bleDevice.awaitConnection(gattObj)
+                if (success) {
+                    connectedDevice = bleDevice
                     true
                 } else {
+                    gattObj.close()
                     false
                 }
             } catch (e: Exception) {
@@ -101,7 +74,8 @@ class BleDeviceConnector(
             tryStandardProfiles(connected)?.let { return it }
 
             // Fall back to generic analysis for non-standard devices
-            val analysis = genericClient.analyzeDevice(connected.gatt.device)
+            val gatt = connected.gatt ?: return emptyList()
+            val analysis = genericClient.analyzeDevice(gatt.device)
             
             // If we found a likely protocol, try to use it
             analysis.protocols.firstOrNull()?.let { protocol ->
@@ -110,7 +84,7 @@ class BleDeviceConnector(
                         // Try to read using the discovered protocol
                         val characteristic = protocol.serviceUuid?.let { serviceUuid ->
                             connected.getService(serviceUuid)?.getCharacteristic(protocol.characteristicUuid)
-                        } ?: connected.gatt.services?.flatMap { it.characteristics }
+                        } ?: gatt.services?.flatMap { it.characteristics }
                             ?.find { it.uuid == protocol.characteristicUuid }
                         
                         characteristic?.let {

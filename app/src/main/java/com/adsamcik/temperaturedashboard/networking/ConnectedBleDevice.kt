@@ -14,7 +14,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import kotlin.coroutines.resume
 
-class ConnectedBleDevice(val gatt: BluetoothGatt) {
+class ConnectedBleDevice {
     private val TAG = "ConnectedBleDevice"
 
     private val notificationChannel = Channel<ByteArray>(capacity = 64)
@@ -24,11 +24,47 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
     private val writeContinuations = mutableMapOf<UUID, CancellableContinuation<Boolean>>()
     private val descriptorContinuations = mutableMapOf<UUID, CancellableContinuation<Boolean>>()
 
-    private val gattCallback = object : BluetoothGattCallback() {
+    // Connection state managed via continuation
+    private var connectionContinuation: CancellableContinuation<BluetoothGatt?>? = null
+
+    var gatt: BluetoothGatt? = null
+        private set
+
+    /**
+     * The GATT callback that MUST be used when calling connectGatt().
+     * This ensures all read/write/notify operations receive their callbacks.
+     */
+    val callback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS && newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+                gatt.discoverServices()
+            } else if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED) {
+                connectionContinuation?.let {
+                    if (it.isActive) it.resume(null)
+                }
+                connectionContinuation = null
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            connectionContinuation?.let {
+                if (it.isActive) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        this@ConnectedBleDevice.gatt = gatt
+                        it.resume(gatt)
+                    } else {
+                        it.resume(null)
+                    }
+                }
+            }
+            connectionContinuation = null
+        }
+
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic
         ) {
+            @Suppress("DEPRECATION")
             notificationChannel.trySend(characteristic.value)
         }
 
@@ -39,6 +75,7 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
         ) {
             val cont = readContinuations.remove(characteristic.uuid)
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                @Suppress("DEPRECATION")
                 cont?.resume(characteristic.value)
             } else {
                 cont?.resume(null)
@@ -64,19 +101,36 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
         }
     }
 
-    fun close() {
-        notificationChannel.close()
-        gatt.close()
+    /**
+     * Suspends until GATT connection + service discovery completes.
+     * Call connectGatt() with [callback] BEFORE calling this.
+     */
+    suspend fun awaitConnection(gattInstance: BluetoothGatt): Boolean {
+        return withTimeoutOrNull(CONNECTION_TIMEOUT_MS) {
+            suspendCancellableCoroutine<BluetoothGatt?> { continuation ->
+                connectionContinuation = continuation
+                continuation.invokeOnCancellation {
+                    connectionContinuation = null
+                    gattInstance.close()
+                }
+            }
+        } != null
     }
 
-    fun getService(uuid: UUID): BluetoothGattService? = gatt.getService(uuid)
+    fun close() {
+        notificationChannel.close()
+        gatt?.close()
+    }
+
+    fun getService(uuid: UUID): BluetoothGattService? = gatt?.getService(uuid)
 
     fun getCharacteristic(serviceUuid: UUID, charUuid: UUID): BluetoothGattCharacteristic? {
         return getService(serviceUuid)?.getCharacteristic(charUuid)
     }
 
-    suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray? =
-        operationMutex.withLock {
+    suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray? {
+        val g = gatt ?: return null
+        return operationMutex.withLock {
             withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
                 suspendCancellableCoroutine { continuation ->
                     val uuid = characteristic.uuid
@@ -84,16 +138,18 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
                     continuation.invokeOnCancellation {
                         readContinuations.remove(uuid)
                     }
-                    if (!gatt.readCharacteristic(characteristic)) {
+                    if (!g.readCharacteristic(characteristic)) {
                         readContinuations.remove(uuid)?.resume(null)
                     }
                 }
             }
         }
+    }
 
     @Suppress("DEPRECATION")
-    suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray): Boolean =
-        operationMutex.withLock {
+    suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray): Boolean {
+        val g = gatt ?: return false
+        return operationMutex.withLock {
             withTimeoutOrNull(OPERATION_TIMEOUT_MS) {
                 suspendCancellableCoroutine<Boolean> { continuation ->
                     val uuid = characteristic.uuid
@@ -102,17 +158,19 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
                         writeContinuations.remove(uuid)
                     }
                     characteristic.value = data
-                    if (!gatt.writeCharacteristic(characteristic)) {
+                    if (!g.writeCharacteristic(characteristic)) {
                         writeContinuations.remove(uuid)?.resume(false)
                     }
                 }
             } ?: false
         }
+    }
 
     @Suppress("DEPRECATION")
-    suspend fun enableNotifications(characteristic: BluetoothGattCharacteristic): Boolean =
-        operationMutex.withLock {
-            if (!gatt.setCharacteristicNotification(characteristic, true)) {
+    suspend fun enableNotifications(characteristic: BluetoothGattCharacteristic): Boolean {
+        val g = gatt ?: return false
+        return operationMutex.withLock {
+            if (!g.setCharacteristicNotification(characteristic, true)) {
                 return@withLock false
             }
 
@@ -125,17 +183,19 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
                         descriptorContinuations.remove(descriptor.uuid)
                     }
                     descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    if (!gatt.writeDescriptor(descriptor)) {
+                    if (!g.writeDescriptor(descriptor)) {
                         descriptorContinuations.remove(descriptor.uuid)?.resume(false)
                     }
                 }
             } ?: false
         }
+    }
 
     @Suppress("DEPRECATION")
-    suspend fun disableNotifications(characteristic: BluetoothGattCharacteristic): Boolean =
-        operationMutex.withLock {
-            if (!gatt.setCharacteristicNotification(characteristic, false)) {
+    suspend fun disableNotifications(characteristic: BluetoothGattCharacteristic): Boolean {
+        val g = gatt ?: return false
+        return operationMutex.withLock {
+            if (!g.setCharacteristicNotification(characteristic, false)) {
                 return@withLock false
             }
 
@@ -148,12 +208,13 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
                         descriptorContinuations.remove(descriptor.uuid)
                     }
                     descriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
-                    if (!gatt.writeDescriptor(descriptor)) {
+                    if (!g.writeDescriptor(descriptor)) {
                         descriptorContinuations.remove(descriptor.uuid)?.resume(false)
                     }
                 }
             } ?: false
         }
+    }
 
     suspend fun waitForNotification(timeoutMillis: Long = NOTIFICATION_TIMEOUT_MS): ByteArray? {
         return withTimeoutOrNull(timeoutMillis) {
@@ -164,5 +225,6 @@ class ConnectedBleDevice(val gatt: BluetoothGatt) {
     companion object {
         private const val OPERATION_TIMEOUT_MS = 5_000L
         private const val NOTIFICATION_TIMEOUT_MS = 5_000L
+        private const val CONNECTION_TIMEOUT_MS = 15_000L
     }
 }
