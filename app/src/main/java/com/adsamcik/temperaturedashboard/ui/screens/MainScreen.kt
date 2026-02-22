@@ -24,11 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.adsamcik.temperaturedashboard.AddDeviceDialog
 import com.adsamcik.temperaturedashboard.DeviceListItem
+import com.adsamcik.temperaturedashboard.R
 import com.adsamcik.temperaturedashboard.ui.models.AddDeviceViewModel
 import com.adsamcik.temperaturedashboard.ui.models.MainViewModel
 import com.adsamcik.temperaturedashboard.ui.state.MainScreenState
@@ -58,24 +60,24 @@ fun MainScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.cd_search_icon),
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "No devices added yet",
+                        text = stringResource(R.string.empty_no_devices),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Add a Bluetooth temperature sensor to get started",
+                        text = stringResource(R.string.empty_add_device_description),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = { mainViewModel.onAddDeviceClicked() }) {
-                        Text("Scan for Devices")
+                        Text(stringResource(R.string.btn_scan_devices))
                     }
                 }
             }
@@ -103,18 +105,18 @@ fun MainScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Warning,
-                        contentDescription = "Error",
+                        contentDescription = stringResource(R.string.cd_error_icon),
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.error
                     )
                     Text(
-                        text = "Error: ${state.message}",
+                        text = stringResource(R.string.error_with_message, state.message),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedButton(onClick = { mainViewModel.retryLoadDevices() }) {
-                        Text("Retry")
+                        Text(stringResource(R.string.btn_retry))
                     }
                 }
             }

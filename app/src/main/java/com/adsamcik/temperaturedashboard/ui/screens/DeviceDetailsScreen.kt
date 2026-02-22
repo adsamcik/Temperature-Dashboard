@@ -33,11 +33,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.adsamcik.temperaturedashboard.R
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
 import com.adsamcik.temperaturedashboard.ui.models.DeviceDetailsViewModel
 import com.adsamcik.temperaturedashboard.ui.state.DeviceDetailsState
@@ -57,13 +61,18 @@ fun DeviceDetailsScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "Device not found", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = stringResource(R.string.device_not_found),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
         return
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val deviceName = device.device.name ?: stringResource(R.string.unknown_device)
+    val deviceNameDescription = stringResource(R.string.cd_device_name, deviceName)
 
     Column(
         modifier = Modifier
@@ -72,17 +81,20 @@ fun DeviceDetailsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = device.device.name ?: "Unknown Device",
-            style = MaterialTheme.typography.headlineSmall
+            text = deviceName,
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics {
+                contentDescription = deviceNameDescription
+            }
         )
         Text(
-            text = "MAC: ${device.device.macAddress}",
+            text = stringResource(R.string.label_mac, device.device.macAddress),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         device.decoder?.name?.let {
             Text(
-                text = "Type: $it",
+                text = stringResource(R.string.label_type, it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -96,7 +108,7 @@ fun DeviceDetailsScreen(
                     onClick = { viewModel.connect() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Connect & Read Data")
+                    Text(stringResource(R.string.btn_connect_read))
                 }
             }
 
@@ -123,7 +135,7 @@ fun DeviceDetailsScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "Live Reading (Passive)",
+                                text = stringResource(R.string.section_live_reading_passive),
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -132,43 +144,73 @@ fun DeviceDetailsScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "%.1f°C".format(state.latestTemperature),
-                                        style = MaterialTheme.typography.headlineLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    val currentTemperatureDescription = stringResource(
+                                        R.string.cd_current_temperature_value,
+                                        state.latestTemperature
                                     )
                                     Text(
-                                        text = "Temperature",
+                                        text = stringResource(
+                                            R.string.format_temperature_celsius,
+                                            state.latestTemperature
+                                        ),
+                                        style = MaterialTheme.typography.headlineLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.semantics {
+                                            contentDescription = currentTemperatureDescription
+                                        }
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.label_temperature),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                 }
                                 if (state.latestHumidity != null) {
+                                    val currentHumidityDescription = stringResource(
+                                        R.string.cd_current_humidity_value,
+                                        state.latestHumidity
+                                    )
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(
-                                            text = "%.0f%%".format(state.latestHumidity),
+                                            text = stringResource(
+                                                R.string.format_humidity_percent,
+                                                state.latestHumidity
+                                            ),
                                             style = MaterialTheme.typography.headlineLarge,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.semantics {
+                                                contentDescription = currentHumidityDescription
+                                            }
                                         )
                                         Text(
-                                            text = "Humidity",
+                                            text = stringResource(R.string.label_humidity),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
                                 }
                                 if (state.batteryPercent != null) {
+                                    val currentBatteryDescription = stringResource(
+                                        R.string.cd_current_battery_value,
+                                        state.batteryPercent
+                                    )
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(
-                                            text = "${state.batteryPercent}%",
+                                            text = stringResource(
+                                                R.string.format_battery_percent,
+                                                state.batteryPercent
+                                            ),
                                             style = MaterialTheme.typography.headlineLarge,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.semantics {
+                                                contentDescription = currentBatteryDescription
+                                            }
                                         )
                                         Text(
-                                            text = "Battery",
+                                            text = stringResource(R.string.label_battery),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
@@ -183,12 +225,12 @@ fun DeviceDetailsScreen(
                     onClick = { viewModel.stopPassiveMonitoring() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Stop Monitoring")
+                    Text(stringResource(R.string.btn_stop_monitoring))
                 }
 
                 if (state.readings.isNotEmpty()) {
                     Text(
-                        text = "History (${state.readings.size} readings)",
+                        text = stringResource(R.string.section_history, state.readings.size),
                         style = MaterialTheme.typography.titleMedium
                     )
                     LazyColumn(
@@ -234,11 +276,11 @@ private fun ConnectingContent(onCancel: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                Text("Connecting to device...")
+                Text(stringResource(R.string.state_connecting))
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Elapsed: ${elapsedSeconds}s",
+                text = stringResource(R.string.state_elapsed_seconds, elapsedSeconds),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -249,7 +291,7 @@ private fun ConnectingContent(onCancel: () -> Unit) {
         onClick = onCancel,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Cancel")
+        Text(stringResource(R.string.btn_cancel))
     }
 }
 
@@ -272,7 +314,7 @@ private fun ConnectedContent(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "Current Reading",
+                    text = stringResource(R.string.section_current_reading),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -281,28 +323,48 @@ private fun ConnectedContent(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "%.1f°C".format(state.latestTemperature),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        val currentTemperatureDescription = stringResource(
+                            R.string.cd_current_temperature_value,
+                            state.latestTemperature
                         )
                         Text(
-                            text = "Temperature",
+                            text = stringResource(
+                                R.string.format_temperature_celsius,
+                                state.latestTemperature
+                            ),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.semantics {
+                                contentDescription = currentTemperatureDescription
+                            }
+                        )
+                        Text(
+                            text = stringResource(R.string.label_temperature),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                     if (state.latestHumidity != null) {
+                        val currentHumidityDescription = stringResource(
+                            R.string.cd_current_humidity_value,
+                            state.latestHumidity
+                        )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "%.0f%%".format(state.latestHumidity),
+                                text = stringResource(
+                                    R.string.format_humidity_percent,
+                                    state.latestHumidity
+                                ),
                                 style = MaterialTheme.typography.headlineLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.semantics {
+                                    contentDescription = currentHumidityDescription
+                                }
                             )
                             Text(
-                                text = "Humidity",
+                                text = stringResource(R.string.label_humidity),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -319,12 +381,12 @@ private fun ConnectedContent(
         onClick = onRefreshButton,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Refresh Data")
+        Text(stringResource(R.string.btn_refresh))
     }
 
     if (state.readings.isNotEmpty()) {
         Text(
-            text = "History (${state.readings.size} readings)",
+            text = stringResource(R.string.section_history, state.readings.size),
             style = MaterialTheme.typography.titleMedium
         )
         PullToRefreshBox(
@@ -354,9 +416,9 @@ private fun LastUpdatedText(lastUpdatedAt: Long) {
     }
 
     val text = when {
-        displayText < 1L -> "Last updated: just now"
-        displayText == 1L -> "Last updated: 1 minute ago"
-        else -> "Last updated: $displayText minutes ago"
+        displayText < 1L -> stringResource(R.string.last_updated_just_now)
+        displayText == 1L -> stringResource(R.string.last_updated_one_minute)
+        else -> stringResource(R.string.last_updated_minutes, displayText)
     }
     Text(
         text = text,
@@ -371,6 +433,7 @@ private fun ErrorContent(
     onRetry: () -> Unit,
     onTryPassive: () -> Unit
 ) {
+    val errorIconDescription = stringResource(R.string.cd_error_icon)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -383,7 +446,7 @@ private fun ErrorContent(
         ) {
             Icon(
                 imageVector = Icons.Default.Warning,
-                contentDescription = "Error",
+                contentDescription = errorIconDescription,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(32.dp)
             )
@@ -401,19 +464,30 @@ private fun ErrorContent(
         onClick = onRetry,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Retry")
+        Text(stringResource(R.string.btn_retry))
     }
     TextButton(
         onClick = onTryPassive,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Try Passive Mode")
+        Text(stringResource(R.string.btn_try_passive_mode))
     }
 }
 
 @Composable
 private fun ReadingRow(reading: TemperatureReading) {
-    val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat(
+        stringResource(R.string.format_history_timestamp),
+        Locale.getDefault()
+    )
+    val temperatureReadingDescription = stringResource(
+        R.string.cd_temperature_reading,
+        reading.temperature
+    )
+    val humidityReadingDescription = stringResource(
+        R.string.cd_humidity_reading,
+        reading.humidity
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -426,12 +500,18 @@ private fun ReadingRow(reading: TemperatureReading) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "%.1f°C".format(reading.temperature),
-            style = MaterialTheme.typography.bodySmall
+            text = stringResource(R.string.format_temperature_celsius, reading.temperature),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.semantics {
+                contentDescription = temperatureReadingDescription
+            }
         )
         Text(
-            text = "%.0f%%".format(reading.humidity),
-            style = MaterialTheme.typography.bodySmall
+            text = stringResource(R.string.format_humidity_percent, reading.humidity),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.semantics {
+                contentDescription = humidityReadingDescription
+            }
         )
     }
 }
