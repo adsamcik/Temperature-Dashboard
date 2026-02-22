@@ -4,6 +4,7 @@ import android.content.Context
 import com.adsamcik.temperaturedashboard.storage.DeviceDao
 import com.adsamcik.temperaturedashboard.storage.DeviceDatabase
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
+import com.adsamcik.temperaturedashboard.storage.PreferencesRepository
 import com.adsamcik.temperaturedashboard.storage.ReadingDao
 import com.adsamcik.temperaturedashboard.storage.ReadingRepository
 import dagger.Module
@@ -42,5 +43,11 @@ object AppModule {
     @Singleton
     fun provideReadingRepository(readingDao: ReadingDao): ReadingRepository {
         return ReadingRepository(readingDao)
+    }
+
+    @Provides
+    @Singleton
+    fun providePreferencesRepository(@ApplicationContext context: Context): PreferencesRepository {
+        return PreferencesRepository(context)
     }
 }

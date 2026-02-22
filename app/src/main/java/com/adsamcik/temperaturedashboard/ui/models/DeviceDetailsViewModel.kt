@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.temperaturedashboard.data.TemperatureUnit
 import com.adsamcik.temperaturedashboard.data.ViewDevice
 import com.adsamcik.temperaturedashboard.data.toViewDevice
 import com.adsamcik.temperaturedashboard.networking.ApiMode
@@ -14,6 +15,7 @@ import com.adsamcik.temperaturedashboard.networking.DeviceDiscoveryManager
 import com.adsamcik.temperaturedashboard.networking.Tp357AdvertisementParser
 import com.adsamcik.temperaturedashboard.storage.Device
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
+import com.adsamcik.temperaturedashboard.storage.PreferencesRepository
 import com.adsamcik.temperaturedashboard.storage.ReadingRepository
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
 import com.adsamcik.temperaturedashboard.ui.SnackbarManager
@@ -24,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,6 +37,7 @@ class DeviceDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val deviceRepository: DeviceRepository,
     private val readingRepository: ReadingRepository,
+    private val preferencesRepository: PreferencesRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -43,6 +47,17 @@ class DeviceDetailsViewModel @Inject constructor(
     private val _historicalReadings = MutableStateFlow<List<TemperatureReading>>(emptyList())
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    val temperatureUnit: StateFlow<TemperatureUnit> = preferencesRepository.temperatureUnit
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TemperatureUnit.CELSIUS)
+
+    fun toggleTemperatureUnit() {
+        viewModelScope.launch {
+            val current = temperatureUnit.value
+            val next = if (current == TemperatureUnit.CELSIUS) TemperatureUnit.FAHRENHEIT else TemperatureUnit.CELSIUS
+            preferencesRepository.setTemperatureUnit(next)
+        }
+    }
 
     val uiState: StateFlow<DeviceDetailsState> = combine(_connectionState, _historicalReadings) { connectionState, readings ->
         when (connectionState) {
@@ -64,7 +79,9 @@ class DeviceDetailsViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, DeviceDetailsState.Idle)
 
-    private var device: ViewDevice? = null
+    private val _device = MutableStateFlow<ViewDevice?>(null)
+    val device: StateFlow<ViewDevice?> = _device.asStateFlow()
+
     private var connector: BleDeviceConnector? = null
     private var discoveryManager: DeviceDiscoveryManager? = null
     private var connectJob: Job? = null
@@ -78,7 +95,7 @@ class DeviceDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             val storedDevice = deviceRepository.getDeviceByMac(deviceMac)
             if (storedDevice != null) {
-                device = storedDevice.toViewDevice()
+                _device.value = storedDevice.toViewDevice()
             }
         }
     }
@@ -93,7 +110,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun connect() {
-        val dev = device ?: return
+        val dev = _device.value ?: return
         connectJob?.cancel()
         connectJob = viewModelScope.launch {
             _connectionState.value = DeviceDetailsState.Connecting
@@ -147,7 +164,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun refreshData() {
-        val dev = device ?: return
+        val dev = _device.value ?: return
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
@@ -237,6 +254,12 @@ class DeviceDetailsViewModel @Inject constructor(
     fun stopPassiveMonitoring() {
         discoveryManager?.stopScan()
         discoveryManager = null
+    }
+
+    fun deleteDevice() {
+        viewModelScope.launch {
+            deviceRepository.deleteDeviceAndReadings(deviceMac)
+        }
     }
 
     override fun onCleared() {
