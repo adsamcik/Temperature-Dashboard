@@ -10,5 +10,11 @@ sealed interface DeviceDetailsState {
         val latestTemperature: Double? = null,
         val latestHumidity: Double? = null
     ) : DeviceDetailsState
+    data class PassiveMonitoring(
+        val readings: List<TemperatureReading>,
+        val latestTemperature: Double? = null,
+        val latestHumidity: Double? = null,
+        val batteryPercent: Int? = null
+    ) : DeviceDetailsState
     data class Error(val message: String) : DeviceDetailsState
 }

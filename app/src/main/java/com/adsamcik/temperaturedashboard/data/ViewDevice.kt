@@ -6,7 +6,8 @@ import com.adsamcik.temperaturedashboard.storage.Device
 
 data class ViewDevice(
     val device: Device,
-    val decoder: BleDeviceHandler?
+    val decoder: BleDeviceHandler?,
+    val liveTemperature: Double? = null
 )
 
 fun Device.toViewDevice(): ViewDevice {

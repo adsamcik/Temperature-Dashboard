@@ -9,6 +9,9 @@ import com.adsamcik.temperaturedashboard.data.ViewDevice
 import com.adsamcik.temperaturedashboard.data.toViewDevice
 import com.adsamcik.temperaturedashboard.networking.ApiMode
 import com.adsamcik.temperaturedashboard.networking.BleDeviceConnector
+import com.adsamcik.temperaturedashboard.networking.DeviceDiscoveryManager
+import com.adsamcik.temperaturedashboard.networking.Tp357AdvertisementParser
+import com.adsamcik.temperaturedashboard.storage.Device
 import com.adsamcik.temperaturedashboard.storage.DeviceRepository
 import com.adsamcik.temperaturedashboard.storage.ReadingRepository
 import com.adsamcik.temperaturedashboard.storage.TemperatureReading
@@ -36,6 +39,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     private var device: ViewDevice? = null
     private var connector: BleDeviceConnector? = null
+    private var discoveryManager: DeviceDiscoveryManager? = null
 
     init {
         loadDevice()
@@ -110,8 +114,63 @@ class DeviceDetailsViewModel @Inject constructor(
         }
     }
 
+    @SuppressLint("MissingPermission")
+    fun startPassiveMonitoring() {
+        if (deviceMac.isBlank()) return
+        stopPassiveMonitoring()
+
+        val manager = DeviceDiscoveryManager(context, object : DeviceDiscoveryManager.DeviceDiscoveryCallback {
+            override fun onDeviceDiscovered(deviceInfo: Device) {
+                // Not used during passive monitoring
+            }
+
+            override fun onScanStateChanged(isScanning: Boolean) {}
+
+            override fun onScanError(message: String) {
+                viewModelScope.launch {
+                    _uiState.value = DeviceDetailsState.Error(message)
+                }
+            }
+
+            override fun onAdvertisementReading(reading: Tp357AdvertisementParser.AdvertisementReading) {
+                if (reading.address != deviceMac) return
+                viewModelScope.launch {
+                    val temperatureReading = TemperatureReading(
+                        deviceMac = deviceMac,
+                        temperature = reading.temperature,
+                        humidity = reading.humidity,
+                        timestamp = reading.timestamp
+                    )
+                    readingRepository.saveReadings(listOf(temperatureReading))
+
+                    val currentState = _uiState.value
+                    val existingReadings = when (currentState) {
+                        is DeviceDetailsState.PassiveMonitoring -> currentState.readings
+                        is DeviceDetailsState.Connected -> currentState.readings
+                        else -> emptyList()
+                    }
+                    _uiState.value = DeviceDetailsState.PassiveMonitoring(
+                        readings = listOf(temperatureReading) + existingReadings,
+                        latestTemperature = reading.temperature,
+                        latestHumidity = reading.humidity,
+                        batteryPercent = reading.batteryPercent
+                    )
+                }
+            }
+        })
+
+        discoveryManager = manager
+        manager.startScan()
+    }
+
+    fun stopPassiveMonitoring() {
+        discoveryManager?.stopScan()
+        discoveryManager = null
+    }
+
     override fun onCleared() {
         super.onCleared()
         connector?.disconnect()
+        stopPassiveMonitoring()
     }
 }

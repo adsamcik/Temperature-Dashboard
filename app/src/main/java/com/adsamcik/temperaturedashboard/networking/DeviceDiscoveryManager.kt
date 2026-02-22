@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import com.adsamcik.temperaturedashboard.decoders.DecoderProvider
 import com.adsamcik.temperaturedashboard.storage.Device
 
 /**
@@ -46,6 +45,12 @@ class DeviceDiscoveryManager(
          * @param message A descriptive error message.
          */
         fun onScanError(message: String)
+
+        /**
+         * Called when a TP357 advertisement reading is parsed from a scan result.
+         * @param reading The parsed advertisement data containing temperature, humidity, and battery.
+         */
+        fun onAdvertisementReading(reading: Tp357AdvertisementParser.AdvertisementReading) {}
     }
 
     /**
@@ -123,6 +128,11 @@ class DeviceDiscoveryManager(
 
         // Notify the callback about the discovered device
         callback.onDeviceDiscovered(device)
+
+        // Try to parse TP357 advertisement data for live readings
+        Tp357AdvertisementParser.parse(result)?.let { reading ->
+            callback.onAdvertisementReading(reading)
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.temperaturedashboard.data.ViewDevice
 import com.adsamcik.temperaturedashboard.data.toViewDevice
 import com.adsamcik.temperaturedashboard.networking.DeviceDiscoveryManager
+import com.adsamcik.temperaturedashboard.networking.Tp357AdvertisementParser
 import com.adsamcik.temperaturedashboard.storage.Device
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -56,6 +57,17 @@ class AddDeviceViewModel @Inject constructor(
 
     override fun onScanError(message: String) {
         stopScanning()
+    }
+
+    override fun onAdvertisementReading(reading: Tp357AdvertisementParser.AdvertisementReading) {
+        viewModelScope.launch {
+            val currentList = _discoveredDevices.value.toMutableList()
+            val index = currentList.indexOfFirst { it.device.macAddress == reading.address }
+            if (index >= 0) {
+                currentList[index] = currentList[index].copy(liveTemperature = reading.temperature)
+                _discoveredDevices.value = currentList
+            }
+        }
     }
 
     override fun onCleared() {
