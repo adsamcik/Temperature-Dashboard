@@ -120,6 +120,7 @@ class ConnectedBleDevice {
     fun close() {
         notificationChannel.close()
         gatt?.close()
+        gatt = null
     }
 
     fun getService(uuid: UUID): BluetoothGattService? = gatt?.getService(uuid)

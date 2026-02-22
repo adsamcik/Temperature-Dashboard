@@ -28,6 +28,8 @@ class BleDeviceConnector(
     private val TAG = "BleDeviceConnector"
     private var connectedDevice: ConnectedBleDevice? = null
     private val genericClient = GenericBleClient(context, ioDispatcher)
+    var isConnected: Boolean = false
+        private set
 
     @SuppressLint("MissingPermission")
     suspend fun connect(): Boolean {
@@ -51,6 +53,7 @@ class BleDeviceConnector(
                 val success = bleDevice.awaitConnection(gattObj)
                 if (success) {
                     connectedDevice = bleDevice
+                    isConnected = true
                     true
                 } else {
                     gattObj.close()
@@ -204,7 +207,9 @@ class BleDeviceConnector(
     }
 
     fun disconnect() {
+        genericClient.cancel()
         connectedDevice?.close()
         connectedDevice = null
+        isConnected = false
     }
 }

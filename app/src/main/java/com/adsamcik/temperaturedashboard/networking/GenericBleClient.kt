@@ -18,7 +18,12 @@ class GenericBleClient(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val protocolCollector = BleProtocolCollector()
-    private val scope = CoroutineScope(ioDispatcher + SupervisorJob())
+    private val supervisorJob = SupervisorJob()
+    private val scope = CoroutineScope(ioDispatcher + supervisorJob)
+
+    fun cancel() {
+        supervisorJob.cancel()
+    }
 
     companion object {
         private const val TAG = "GenericBleClient"
