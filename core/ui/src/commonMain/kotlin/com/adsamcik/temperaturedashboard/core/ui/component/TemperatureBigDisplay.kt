@@ -65,3 +65,16 @@ internal fun formatOneDecimal(value: Double): String {
     val tenths = ((rounded - whole) * 10).roundToInt().let { if (it < 0) -it else it }
     return "$whole.$tenths"
 }
+
+/** Public formatting helpers, KMP-safe (no java.util.Locale). */
+fun formatTemperature(value: Double, decimals: Int = 1): String = formatDecimal(value, decimals)
+
+fun formatDecimal(value: Double, decimals: Int): String {
+    val factor = generateSequence(1) { it * 10 }.drop(decimals).first().toDouble()
+    val rounded = (value * factor).toLong()
+    val sign = if (value < 0 && rounded == 0L) "-" else ""
+    val whole = (kotlin.math.abs(rounded) / factor.toLong())
+    val frac = kotlin.math.abs(rounded) % factor.toLong()
+    val fracPadded = frac.toString().padStart(decimals, '0')
+    return if (decimals == 0) "$sign$whole" else "$sign$whole.$fracPadded"
+}
