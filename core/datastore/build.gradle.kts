@@ -10,6 +10,7 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
+            api(project(":core:model"))
             api(libs.multiplatform.settings)
             api(libs.multiplatform.settings.coroutines)
             implementation(libs.multiplatform.settings.no.arg)

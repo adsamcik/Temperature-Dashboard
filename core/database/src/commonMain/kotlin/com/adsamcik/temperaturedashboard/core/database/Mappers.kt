@@ -7,7 +7,7 @@ import com.adsamcik.temperaturedashboard.core.model.SensorAddress
 import com.adsamcik.temperaturedashboard.core.model.SensorId
 import kotlinx.datetime.Instant
 
-internal fun SensorEntity.toDomain(): Sensor = Sensor(
+fun SensorEntity.toDomain(): Sensor = Sensor(
     id = SensorId(id),
     address = SensorAddress(address),
     profileId = profileId,
@@ -18,7 +18,7 @@ internal fun SensorEntity.toDomain(): Sensor = Sensor(
     colorSeed = colorSeed,
 )
 
-internal fun Sensor.toEntity(): SensorEntity = SensorEntity(
+fun Sensor.toEntity(): SensorEntity = SensorEntity(
     id = id.raw,
     address = address.raw,
     profileId = profileId,
@@ -29,7 +29,7 @@ internal fun Sensor.toEntity(): SensorEntity = SensorEntity(
     colorSeed = colorSeed,
 )
 
-internal fun ReadingIntervalEntity.toDomain(): ReadingInterval = ReadingInterval(
+fun ReadingIntervalEntity.toDomain(): ReadingInterval = ReadingInterval(
     id = id,
     sensorId = SensorId(sensorId),
     temperatureC = temperatureC,
