@@ -18,6 +18,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
             jvm("desktop") {
                 compilerOptions {
                     jvmTarget.set(JvmTarget.JVM_21)
+                    freeCompilerArgs.add("-Xexpect-actual-classes")
                 }
             }
 
@@ -44,6 +45,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
                 androidTarget {
                     compilerOptions {
                         jvmTarget.set(JvmTarget.JVM_21)
+                        freeCompilerArgs.add("-Xexpect-actual-classes")
                     }
                 }
             }

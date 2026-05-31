@@ -49,4 +49,5 @@ internal fun Project.configureKotlinJvm() {
 private val commonFreeCompilerArgs = listOf(
     "-Xjsr305=strict",
     "-opt-in=kotlin.RequiresOptIn",
+    "-Xexpect-actual-classes",
 )
