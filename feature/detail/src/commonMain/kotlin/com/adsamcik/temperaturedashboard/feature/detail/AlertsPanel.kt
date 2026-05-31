@@ -29,6 +29,31 @@ import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.AlertKind
 import com.adsamcik.temperaturedashboard.core.model.SensorAlert
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_add
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_cancel
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_delete
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_plus_add
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_kind_battery_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_kind_humidity_above
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_kind_humidity_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_kind_temp_above
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_kind_temp_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_label_battery_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_label_humidity_above
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_label_humidity_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_label_temp_above
+import com.adsamcik.temperaturedashboard.core.ui.resources.alert_label_temp_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_dialog_cooldown
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_dialog_cooldown_help
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_dialog_threshold
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_dialog_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_dialog_type
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_empty
+import com.adsamcik.temperaturedashboard.core.ui.resources.alerts_title
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -55,12 +80,12 @@ fun AlertsPanel(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Alerts",
+                    text = stringResource(Res.string.alerts_title),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).semantics { heading() },
                 )
                 var dialogOpen by remember { mutableStateOf(false) }
-                TextButton(onClick = { dialogOpen = true }) { Text("+ Add") }
+                TextButton(onClick = { dialogOpen = true }) { Text(stringResource(Res.string.action_plus_add)) }
                 if (dialogOpen) {
                     AddAlertDialog(
                         onConfirm = { kind, cooldown ->
@@ -74,8 +99,7 @@ fun AlertsPanel(
 
             if (alerts.isEmpty()) {
                 Text(
-                    text = "No alerts configured. Tap + Add to be notified when " +
-                        "this sensor crosses a threshold.",
+                    text = stringResource(Res.string.alerts_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -108,7 +132,7 @@ private fun AlertRow(
             modifier = Modifier.padding(start = TdashSpacing.s).weight(1f),
             style = MaterialTheme.typography.bodyMedium,
         )
-        TextButton(onClick = onDelete) { Text("Delete") }
+        TextButton(onClick = onDelete) { Text(stringResource(Res.string.action_delete)) }
     }
 }
 
@@ -120,11 +144,11 @@ private fun AddAlertDialog(
 ) {
     var kindIndex by remember { mutableStateOf(0) }
     val kindOptions = listOf(
-        "Temperature above" to { v: Double -> AlertKind.TempAbove(v) },
-        "Temperature below" to { v: Double -> AlertKind.TempBelow(v) },
-        "Humidity above" to { v: Double -> AlertKind.HumidityAbove(v) },
-        "Humidity below" to { v: Double -> AlertKind.HumidityBelow(v) },
-        "Battery below" to { v: Double -> AlertKind.BatteryBelow(v.toInt()) },
+        stringResource(Res.string.alert_kind_temp_above) to { v: Double -> AlertKind.TempAbove(v) },
+        stringResource(Res.string.alert_kind_temp_below) to { v: Double -> AlertKind.TempBelow(v) },
+        stringResource(Res.string.alert_kind_humidity_above) to { v: Double -> AlertKind.HumidityAbove(v) },
+        stringResource(Res.string.alert_kind_humidity_below) to { v: Double -> AlertKind.HumidityBelow(v) },
+        stringResource(Res.string.alert_kind_battery_below) to { v: Double -> AlertKind.BatteryBelow(v.toInt()) },
     )
     val defaultThreshold = when (kindIndex) {
         0 -> 25.0; 1 -> 5.0; 2 -> 70.0; 3 -> 30.0; 4 -> 20.0; else -> 0.0
@@ -148,13 +172,13 @@ private fun AddAlertDialog(
                         cooldownMinutes.toLong().minutes,
                     )
                 },
-            ) { Text("Add") }
+            ) { Text(stringResource(Res.string.action_add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        title = { Text("New alert") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
+        title = { Text(stringResource(Res.string.alerts_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(TdashSpacing.s)) {
-                Text("Type", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(Res.string.alerts_dialog_type), style = MaterialTheme.typography.labelMedium)
                 androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(TdashSpacing.xs),
                 ) {
@@ -167,7 +191,7 @@ private fun AddAlertDialog(
                     }
                 }
                 Text(
-                    text = "Threshold: ${formatDecimal(threshold, decimals = 1)}",
+                    text = stringResource(Res.string.alerts_dialog_threshold, formatDecimal(threshold, decimals = 1)),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Slider(
@@ -176,12 +200,11 @@ private fun AddAlertDialog(
                     valueRange = sliderRange,
                 )
                 Text(
-                    text = "Cooldown: ${cooldownMinutes.toInt()} min",
+                    text = stringResource(Res.string.alerts_dialog_cooldown, cooldownMinutes.toInt()),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Text(
-                    text = "Once fired, this alert can't fire again for this long " +
-                        "even if the value stays past the threshold.",
+                    text = stringResource(Res.string.alerts_dialog_cooldown_help),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -196,10 +219,11 @@ private fun AddAlertDialog(
     )
 }
 
+@Composable
 private fun AlertKind.label(): String = when (this) {
-    is AlertKind.TempAbove -> "Temperature > ${formatDecimal(celsius, 1)} °C"
-    is AlertKind.TempBelow -> "Temperature < ${formatDecimal(celsius, 1)} °C"
-    is AlertKind.HumidityAbove -> "Humidity > ${percent.toInt()} %"
-    is AlertKind.HumidityBelow -> "Humidity < ${percent.toInt()} %"
-    is AlertKind.BatteryBelow -> "Battery < $percent %"
+    is AlertKind.TempAbove -> stringResource(Res.string.alert_label_temp_above, formatDecimal(celsius, 1))
+    is AlertKind.TempBelow -> stringResource(Res.string.alert_label_temp_below, formatDecimal(celsius, 1))
+    is AlertKind.HumidityAbove -> stringResource(Res.string.alert_label_humidity_above, percent.toInt())
+    is AlertKind.HumidityBelow -> stringResource(Res.string.alert_label_humidity_below, percent.toInt())
+    is AlertKind.BatteryBelow -> stringResource(Res.string.alert_label_battery_below, percent)
 }

@@ -8,11 +8,6 @@ android {
     namespace = "com.adsamcik.temperaturedashboard.shared"
 }
 
-compose.resources {
-    publicResClass = true
-    packageOfResClass = "com.adsamcik.temperaturedashboard.shared.resources"
-}
-
 kotlin {
     sourceSets {
         commonMain.dependencies {

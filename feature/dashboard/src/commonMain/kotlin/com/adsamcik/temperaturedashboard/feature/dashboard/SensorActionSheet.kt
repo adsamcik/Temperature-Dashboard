@@ -33,9 +33,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.Sensor
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_cancel
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_change_color
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_delete
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_delete_supporting
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_hide
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_history_kept_either_way
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_rename
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_save
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_unhide
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_color_explainer
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_color_swatch_a11y
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_color_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_delete_text
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_delete_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_rename_label
+import com.adsamcik.temperaturedashboard.core.ui.resources.dialog_rename_title
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Modal bottom sheet shown when the user long-presses a sensor card.
@@ -68,20 +88,25 @@ fun SensorActionSheet(
                 modifier = Modifier.padding(horizontal = TdashSpacing.m, vertical = TdashSpacing.s),
             )
             ListItem(
-                headlineContent = { Text("Rename") },
+                headlineContent = { Text(stringResource(Res.string.action_rename)) },
                 leadingContent = { Icon(Icons.Outlined.Edit, contentDescription = null) },
                 modifier = Modifier.clickable { pendingDialog = PendingDialog.Rename },
             )
             ListItem(
-                headlineContent = { Text("Change colour") },
+                headlineContent = { Text(stringResource(Res.string.action_change_color)) },
                 leadingContent = { Icon(Icons.Outlined.ColorLens, contentDescription = null) },
                 modifier = Modifier.clickable { pendingDialog = PendingDialog.Color },
             )
             ListItem(
-                headlineContent = { Text(if (sensor.hidden) "Show on dashboard" else "Hide from dashboard") },
+                headlineContent = {
+                    Text(
+                        if (sensor.hidden) stringResource(Res.string.action_unhide)
+                        else stringResource(Res.string.action_hide),
+                    )
+                },
                 supportingContent = {
                     Text(
-                        text = "History is kept either way.",
+                        text = stringResource(Res.string.action_history_kept_either_way),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 },
@@ -89,10 +114,10 @@ fun SensorActionSheet(
                 modifier = Modifier.clickable { onHide(); onDismiss() },
             )
             ListItem(
-                headlineContent = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                headlineContent = { Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 supportingContent = {
                     Text(
-                        text = "Removes the sensor and all its history.",
+                        text = stringResource(Res.string.action_delete_supporting),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 },
@@ -129,25 +154,19 @@ fun SensorActionSheet(
         )
         PendingDialog.Delete -> AlertDialog(
             onDismissRequest = { pendingDialog = PendingDialog.None },
-            title = { Text("Delete ${sensor.displayName}?") },
-            text = {
-                Text(
-                    "This removes the sensor and ${"all its recorded history"}. " +
-                        "You can re-add it from Add sensor, but the old history " +
-                        "won't come back.",
-                )
-            },
+            title = { Text(stringResource(Res.string.dialog_delete_title, sensor.displayName)) },
+            text = { Text(stringResource(Res.string.dialog_delete_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete()
                     pendingDialog = PendingDialog.None
                     onDismiss()
                 }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDialog = PendingDialog.None }) { Text("Cancel") }
+                TextButton(onClick = { pendingDialog = PendingDialog.None }) { Text(stringResource(Res.string.action_cancel)) }
             },
         )
         PendingDialog.None -> Unit
@@ -165,22 +184,22 @@ private fun RenameDialog(
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename sensor") },
+        title = { Text(stringResource(Res.string.dialog_rename_title)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
-                label = { Text("Name") },
+                label = { Text(stringResource(Res.string.dialog_rename_label)) },
             )
         },
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(text.trim()) },
                 enabled = text.isNotBlank() && text.trim() != initial,
-            ) { Text("Save") }
+            ) { Text(stringResource(Res.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
     )
 }
 
@@ -193,18 +212,18 @@ private fun ColorPickerDialog(
     var selected by remember { mutableStateOf(current) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sensor colour") },
+        title = { Text(stringResource(Res.string.dialog_color_title)) },
         text = {
             Column {
                 Text(
-                    "Picks the accent for the dashboard card dot, the sparkline, " +
-                        "and the chart line in detail view.",
+                    stringResource(Res.string.dialog_color_explainer),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(
                     modifier = Modifier.padding(top = TdashSpacing.m),
                     horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s),
                 ) {
+                    val swatchCd = stringResource(Res.string.dialog_color_swatch_a11y)
                     PRESET_COLORS.forEach { argb ->
                         val color = Color(argb.toLong() or 0xFF000000L)
                         val isSelected = argb == selected
@@ -218,6 +237,7 @@ private fun ColorPickerDialog(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     shape = CircleShape,
                                 )
+                                .semantics { contentDescription = swatchCd }
                                 .clickable { selected = argb },
                             content = {},
                         )
@@ -226,9 +246,9 @@ private fun ColorPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }) { Text("Save") }
+            TextButton(onClick = { onConfirm(selected) }) { Text(stringResource(Res.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
     )
 }
 

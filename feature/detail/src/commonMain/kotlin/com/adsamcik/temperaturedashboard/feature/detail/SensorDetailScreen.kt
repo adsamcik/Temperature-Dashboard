@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.AlertKind
@@ -38,14 +40,36 @@ import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
 import com.adsamcik.temperaturedashboard.core.ui.component.EmptyState
 import com.adsamcik.temperaturedashboard.core.ui.component.TemperatureBigDisplay
 import com.adsamcik.temperaturedashboard.core.ui.component.formatTemperature
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_compare_to
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_coverage
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_export_csv
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_export_json
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_humidity
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_overlay_none
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_range_stats
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_sensor_not_found_message
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_sensor_not_found_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_stat_avg
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_stat_max
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_stat_min
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_stat_unknown
+import com.adsamcik.temperaturedashboard.core.ui.resources.detail_sync_history_default
+import com.adsamcik.temperaturedashboard.core.ui.resources.range_1d
+import com.adsamcik.temperaturedashboard.core.ui.resources.range_1h
+import com.adsamcik.temperaturedashboard.core.ui.resources.range_1m
+import com.adsamcik.temperaturedashboard.core.ui.resources.range_1w
+import com.adsamcik.temperaturedashboard.core.ui.resources.range_1y
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration
 
-enum class HistoryRange(val label: String) {
-    Hour("1H"),
-    Day("1D"),
-    Week("1W"),
-    Month("1M"),
-    Year("1Y"),
+enum class HistoryRange(val labelRes: StringResource) {
+    Hour(Res.string.range_1h),
+    Day(Res.string.range_1d),
+    Week(Res.string.range_1w),
+    Month(Res.string.range_1m),
+    Year(Res.string.range_1y),
 }
 
 /** Compare-with selection: the other sensor whose line should overlay the chart, or null for none. */
@@ -69,12 +93,13 @@ fun SensorDetailScreen(
     onExportCsv: () -> Unit,
     onExportJson: () -> Unit,
     onSyncHistory: (() -> Unit)? = null,
+    syncHistoryLabel: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (sensor == null) {
         EmptyState(
-            title = "Sensor not found",
-            message = "This sensor may have been deleted.",
+            title = stringResource(Res.string.detail_sensor_not_found_title),
+            message = stringResource(Res.string.detail_sensor_not_found_message),
             modifier = modifier,
         )
         return
@@ -99,7 +124,7 @@ fun SensorDetailScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "${h.toInt()} %", style = MaterialTheme.typography.displaySmall)
                     Text(
-                        text = "Humidity",
+                        text = stringResource(Res.string.detail_humidity),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -154,8 +179,8 @@ fun SensorDetailScreen(
             modifier = Modifier.fillMaxWidth().padding(top = TdashSpacing.l),
             horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s),
         ) {
-            OutlinedButton(onClick = onExportCsv, modifier = Modifier.weight(1f)) { Text("Export CSV") }
-            OutlinedButton(onClick = onExportJson, modifier = Modifier.weight(1f)) { Text("Export JSON") }
+            OutlinedButton(onClick = onExportCsv, modifier = Modifier.weight(1f)) { Text(stringResource(Res.string.detail_export_csv)) }
+            OutlinedButton(onClick = onExportJson, modifier = Modifier.weight(1f)) { Text(stringResource(Res.string.detail_export_json)) }
         }
 
         if (onSyncHistory != null) {
@@ -163,7 +188,7 @@ fun SensorDetailScreen(
                 onClick = onSyncHistory,
                 modifier = Modifier.fillMaxWidth().padding(top = TdashSpacing.s),
             ) {
-                Text("Sync 24h history from device (BETA)")
+                Text(syncHistoryLabel ?: stringResource(Res.string.detail_sync_history_default))
             }
         }
     }
@@ -180,7 +205,7 @@ private fun RangeChips(
             FilterChip(
                 selected = r == range,
                 onClick = { onRangeChange(r) },
-                label = { Text(r.label) },
+                label = { Text(stringResource(r.labelRes)) },
             )
         }
     }
@@ -194,14 +219,14 @@ private fun OverlayPicker(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        Text("Compare to", style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(Res.string.detail_compare_to), style = MaterialTheme.typography.labelMedium)
         androidx.compose.foundation.layout.FlowRow(
             modifier = Modifier.padding(top = TdashSpacing.xs),
             horizontalArrangement = Arrangement.spacedBy(TdashSpacing.xs),
         ) {
             AssistChip(
                 onClick = { onSelect(null) },
-                label = { Text("None") },
+                label = { Text(stringResource(Res.string.detail_overlay_none)) },
                 colors = if (current == null) {
                     AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -230,14 +255,19 @@ private fun StatsPanel(stats: IntervalStats, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(modifier = Modifier.padding(TdashSpacing.m)) {
-            Text("Range stats", style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(Res.string.detail_range_stats),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
             Row(modifier = Modifier.padding(top = TdashSpacing.s).fillMaxWidth()) {
-                StatColumn("Min", stats.minTemperatureC?.let { formatTemperature(it) + " °C" } ?: "—")
-                StatColumn("Avg", stats.avgTemperatureC?.let { formatTemperature(it) + " °C" } ?: "—")
-                StatColumn("Max", stats.maxTemperatureC?.let { formatTemperature(it) + " °C" } ?: "—")
+                val unknown = stringResource(Res.string.detail_stat_unknown)
+                StatColumn(stringResource(Res.string.detail_stat_min), stats.minTemperatureC?.let { formatTemperature(it) + " °C" } ?: unknown)
+                StatColumn(stringResource(Res.string.detail_stat_avg), stats.avgTemperatureC?.let { formatTemperature(it) + " °C" } ?: unknown)
+                StatColumn(stringResource(Res.string.detail_stat_max), stats.maxTemperatureC?.let { formatTemperature(it) + " °C" } ?: unknown)
             }
             Text(
-                text = "Coverage: ${(stats.coverageRatio * 100).toInt()}%",
+                text = stringResource(Res.string.detail_coverage, (stats.coverageRatio * 100).toInt()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = TdashSpacing.s),

@@ -49,6 +49,45 @@ internal class BtleplugNative private constructor(
         lib.btleplug_stop_scan(handle)
     }
 
+    /** Returns the connection id (>0) on success, or a negative error code. */
+    fun connect(address: String): Int {
+        val bytes = address.encodeToByteArray()
+        return lib.btleplug_connect(handle, bytes, bytes.size)
+    }
+
+    fun subscribe(connId: Int, serviceUuid: String, characteristicUuid: String): Int {
+        val svc = serviceUuid.encodeToByteArray()
+        val chr = characteristicUuid.encodeToByteArray()
+        return lib.btleplug_subscribe(handle, connId, svc, svc.size, chr, chr.size)
+    }
+
+    fun writeCharacteristic(
+        connId: Int,
+        serviceUuid: String,
+        characteristicUuid: String,
+        payload: ByteArray,
+        withResponse: Boolean,
+    ): Int {
+        val svc = serviceUuid.encodeToByteArray()
+        val chr = characteristicUuid.encodeToByteArray()
+        return lib.btleplug_write_char(
+            handle = handle,
+            connId = connId,
+            serviceUuid = svc,
+            serviceUuidLen = svc.size,
+            charUuid = chr,
+            charUuidLen = chr.size,
+            payload = payload,
+            payloadLen = payload.size,
+            withResponse = if (withResponse) 1 else 0,
+        )
+    }
+
+    fun nextNotification(connId: Int, buf: ByteArray): Int =
+        lib.btleplug_next_notification(handle, connId, buf, buf.size)
+
+    fun disconnect(connId: Int): Int = lib.btleplug_disconnect(handle, connId)
+
     fun advertisements(): Flow<BleAdvertisement> = flow {
         val buf = ByteArray(EVENT_BUFFER_BYTES)
         while (true) {
@@ -69,11 +108,16 @@ internal class BtleplugNative private constructor(
         }
     }.flowOn(Dispatchers.IO)
 
+    /** JNA library handle for the raw C ABI — package-private for the connection class. */
+    internal fun rawLib(): BtleplugLib = lib
+    internal fun rawHandle(): Pointer = handle
+
     companion object {
-        private const val EVENT_BUFFER_BYTES = 8 * 1024
-        private const val POLL_INTERVAL_MS = 50L
-        private const val POLL_INTERVAL_MS_ON_ERROR = 500L
-        private val json = Json { ignoreUnknownKeys = true }
+        const val EVENT_BUFFER_BYTES = 8 * 1024
+        const val NOTIFICATION_BUFFER_BYTES = 4 * 1024
+        const val POLL_INTERVAL_MS = 50L
+        const val POLL_INTERVAL_MS_ON_ERROR = 500L
+        internal val json = Json { ignoreUnknownKeys = true }
 
         /**
          * Locates and loads the native library. Throws if it can't be found on
@@ -87,13 +131,40 @@ internal class BtleplugNative private constructor(
         }
     }
 
-    @Suppress("unused")
+    @Suppress("unused", "FunctionName")
     internal interface BtleplugLib : Library {
         fun btleplug_open(): Pointer?
         fun btleplug_close(handle: Pointer)
         fun btleplug_start_scan(handle: Pointer): Int
         fun btleplug_stop_scan(handle: Pointer): Int
         fun btleplug_next_event(handle: Pointer, buf: ByteArray, bufLen: Int): Int
+        fun btleplug_connect(handle: Pointer, address: ByteArray, addressLen: Int): Int
+        fun btleplug_subscribe(
+            handle: Pointer,
+            connId: Int,
+            serviceUuid: ByteArray,
+            serviceUuidLen: Int,
+            charUuid: ByteArray,
+            charUuidLen: Int,
+        ): Int
+        fun btleplug_write_char(
+            handle: Pointer,
+            connId: Int,
+            serviceUuid: ByteArray,
+            serviceUuidLen: Int,
+            charUuid: ByteArray,
+            charUuidLen: Int,
+            payload: ByteArray,
+            payloadLen: Int,
+            withResponse: Int,
+        ): Int
+        fun btleplug_next_notification(
+            handle: Pointer,
+            connId: Int,
+            buf: ByteArray,
+            bufLen: Int,
+        ): Int
+        fun btleplug_disconnect(handle: Pointer, connId: Int): Int
     }
 }
 

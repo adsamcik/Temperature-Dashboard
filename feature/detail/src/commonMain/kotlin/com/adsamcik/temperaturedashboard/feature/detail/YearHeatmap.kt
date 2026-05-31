@@ -19,10 +19,16 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.ReadingInterval
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.heatmap_a11y_summary
+import com.adsamcik.temperaturedashboard.core.ui.resources.heatmap_empty
+import com.adsamcik.temperaturedashboard.core.ui.resources.heatmap_title
+import org.jetbrains.compose.resources.stringResource
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
@@ -54,12 +60,13 @@ fun YearHeatmap(
     ) {
         Column(modifier = Modifier.padding(TdashSpacing.m)) {
             Text(
-                text = "Daily average temperature, last 365 days",
+                text = stringResource(Res.string.heatmap_title),
                 style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
             )
             if (dailyAvg.isEmpty()) {
                 Text(
-                    text = "No data yet — heatmap fills in as readings accumulate.",
+                    text = stringResource(Res.string.heatmap_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = TdashSpacing.s),
@@ -77,10 +84,12 @@ fun YearHeatmap(
             val today = Clock.System.now().toLocalDateTime(tz).date
             val rangeStart = today.minus(364, DateTimeUnit.DAY)
 
-            val a11ySummary = remember(dailyAvg, minT, maxT) {
-                "Heatmap of ${dailyAvg.size} days of temperature data. " +
-                    "Range from ${"%.1f".formatLike(minT)} to ${"%.1f".formatLike(maxT)} degrees Celsius."
-            }
+            val a11ySummary = stringResource(
+                Res.string.heatmap_a11y_summary,
+                dailyAvg.size,
+                formatDecimal(minT, 1),
+                formatDecimal(maxT, 1),
+            )
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -137,16 +146,6 @@ private fun colorForTemp(
     val range = (max - min).takeIf { it > 0 } ?: 1.0
     val frac = ((t - min) / range).coerceIn(0.0, 1.0).toFloat()
     return if (frac < 0.5f) lerp(cold, mid, frac * 2f) else lerp(mid, hot, (frac - 0.5f) * 2f)
-}
-
-/** KMP-safe one-decimal formatter — Locale-free so it works in commonMain. */
-private fun String.formatLike(value: Double): String {
-    // The receiver is just `"%.1f"` for readability at the call site; we don't
-    // actually use Locale-based String.format here.
-    val rounded = (value * 10).toLong()
-    val whole = rounded / 10
-    val tenths = kotlin.math.abs(rounded - whole * 10)
-    return if (value < 0 && whole == 0L) "-0.$tenths" else "$whole.$tenths"
 }
 
 /**

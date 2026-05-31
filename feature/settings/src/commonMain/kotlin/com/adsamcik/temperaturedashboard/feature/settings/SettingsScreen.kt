@@ -19,18 +19,48 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.CoalescingPolicy
 import com.adsamcik.temperaturedashboard.core.model.Sensor
 import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_show
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_about
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_about_tagline
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_about_version
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_appearance
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_coalescing_help
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_coalescing_humidity_label
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_coalescing_temp_label
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_coalescing_thresholds
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_hidden_sensors
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_material_you_help
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_material_you_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_oss_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_stale_window
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_stale_window_help
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_stale_window_label
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_stale_window_value
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_start_at_login
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_start_at_login_help
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_start_at_login_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_temperature_unit
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_theme
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_theme_dark
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_theme_light
+import com.adsamcik.temperaturedashboard.core.ui.resources.settings_theme_system
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.milliseconds
 
 /** Light/dark/system override surfaced in Settings; mirrors core.datastore.ThemeMode. */
-enum class ThemeOption(val label: String) {
-    SYSTEM("System"),
-    LIGHT("Light"),
-    DARK("Dark"),
+enum class ThemeOption(val labelRes: StringResource) {
+    SYSTEM(Res.string.settings_theme_system),
+    LIGHT(Res.string.settings_theme_light),
+    DARK(Res.string.settings_theme_dark),
 }
 
 @Composable
@@ -54,14 +84,14 @@ fun SettingsScreen(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TdashSpacing.m),
         verticalArrangement = Arrangement.spacedBy(TdashSpacing.l),
     ) {
-        SettingsSection(title = "Appearance") {
-            Text("Theme", style = MaterialTheme.typography.labelMedium)
+        SettingsSection(title = stringResource(Res.string.settings_appearance)) {
+            Text(stringResource(Res.string.settings_theme), style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s)) {
                 ThemeOption.entries.forEach { opt ->
                     FilterChip(
                         selected = opt == themeMode,
                         onClick = { onThemeChange(opt) },
-                        label = { Text(opt.label) },
+                        label = { Text(stringResource(opt.labelRes)) },
                     )
                 }
             }
@@ -70,10 +100,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Material You colour", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(Res.string.settings_material_you_title), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        text = "On Android 12+ the colour scheme follows your wallpaper. " +
-                            "Turn off for the warm-coral default.",
+                        text = stringResource(Res.string.settings_material_you_help),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -82,7 +111,7 @@ fun SettingsScreen(
             }
         }
 
-        SettingsSection(title = "Temperature unit") {
+        SettingsSection(title = stringResource(Res.string.settings_temperature_unit)) {
             Row(horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s)) {
                 TemperatureUnit.entries.forEach { u ->
                     FilterChip(
@@ -94,15 +123,14 @@ fun SettingsScreen(
             }
         }
 
-        SettingsSection(title = "Coalescing thresholds") {
+        SettingsSection(title = stringResource(Res.string.settings_coalescing_thresholds)) {
             Text(
-                text = "Smaller thresholds capture more detail but write more rows. " +
-                    "Defaults work well for ThermoPro, SwitchBot, and Govee devices.",
+                text = stringResource(Res.string.settings_coalescing_help),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             SliderRow(
-                label = "Temperature \u0394 (°C)",
+                label = stringResource(Res.string.settings_coalescing_temp_label),
                 value = policy.temperatureThresholdC.toFloat(),
                 valueRange = 0.05f..1.0f,
                 steps = 18,
@@ -110,7 +138,7 @@ fun SettingsScreen(
                 onChange = { onPolicyChange(policy.copy(temperatureThresholdC = it.toDouble())) },
             )
             SliderRow(
-                label = "Humidity \u0394 (%)",
+                label = stringResource(Res.string.settings_coalescing_humidity_label),
                 value = policy.humidityThresholdPct.toFloat(),
                 valueRange = 0.5f..5.0f,
                 steps = 8,
@@ -119,19 +147,19 @@ fun SettingsScreen(
             )
         }
 
-        SettingsSection(title = "Stale window") {
+        SettingsSection(title = stringResource(Res.string.settings_stale_window)) {
             Text(
-                text = "If no advertisement arrives in this window, the current interval " +
-                    "freezes and chart gaps show as gaps (not stale held values).",
+                text = stringResource(Res.string.settings_stale_window_help),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val minFmt = stringResource(Res.string.settings_stale_window_value, 0).replace("0", "%d")
             SliderRow(
-                label = "Window (minutes)",
+                label = stringResource(Res.string.settings_stale_window_label),
                 value = (policy.staleWindow.inWholeMilliseconds / 60_000L).toFloat(),
                 valueRange = 1f..60f,
                 steps = 58,
-                display = { "${it.toInt()} min" },
+                display = { minFmt.replace("%d", it.toInt().toString()) },
                 onChange = {
                     onPolicyChange(
                         policy.copy(staleWindow = (it.toLong() * 60_000L).milliseconds),
@@ -141,7 +169,7 @@ fun SettingsScreen(
         }
 
         if (hiddenSensors.isNotEmpty()) {
-            SettingsSection(title = "Hidden sensors") {
+            SettingsSection(title = stringResource(Res.string.settings_hidden_sensors)) {
                 hiddenSensors.forEach { sensor ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -155,25 +183,25 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        TextButton(onClick = { onUnhideSensor(sensor) }) { Text("Show") }
+                        TextButton(onClick = { onUnhideSensor(sensor) }) { Text(stringResource(Res.string.action_show)) }
                     }
                 }
             }
         }
 
         if (autostartSupported) {
-            SettingsSection(title = "Start at login") {
+            SettingsSection(title = stringResource(Res.string.settings_start_at_login)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Launch automatically when you sign in",
+                            text = stringResource(Res.string.settings_start_at_login_title),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            text = "Keeps your sensors recording even after a reboot.",
+                            text = stringResource(Res.string.settings_start_at_login_help),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -183,16 +211,16 @@ fun SettingsScreen(
             }
         }
 
-        SettingsSection(title = "About") {
-            Text("Temperature Dashboard \u00B7 v0.3.0", style = MaterialTheme.typography.bodyMedium)
+        SettingsSection(title = stringResource(Res.string.settings_about)) {
+            Text(stringResource(Res.string.settings_about_version), style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "Universal Bluetooth temperature & humidity sensor dashboard.",
+                text = stringResource(Res.string.settings_about_tagline),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = TdashSpacing.xs),
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = TdashSpacing.s))
-            Text("Open source libraries", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(Res.string.settings_oss_title), style = MaterialTheme.typography.labelMedium)
             Text(
                 text = OSS_ATTRIBUTIONS,
                 style = MaterialTheme.typography.bodySmall,
@@ -212,7 +240,11 @@ private fun SettingsSection(title: String, content: @Composable () -> Unit) {
             modifier = Modifier.padding(TdashSpacing.m),
             verticalArrangement = Arrangement.spacedBy(TdashSpacing.s),
         ) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
             content()
         }
     }
@@ -257,5 +289,3 @@ private val OSS_ATTRIBUTIONS = listOf(
     "SwitchBot BLE protocol — OpenWonderLabs / pySwitchbot (MIT)",
     "govee-ble parser — Bluetooth-Devices/govee-ble (MIT)",
 ).joinToString("\n") { "\u2022 $it" }
-
-

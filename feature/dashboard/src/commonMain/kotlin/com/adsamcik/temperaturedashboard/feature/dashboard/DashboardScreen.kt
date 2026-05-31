@@ -16,6 +16,10 @@ import com.adsamcik.temperaturedashboard.core.model.SensorId
 import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
 import com.adsamcik.temperaturedashboard.core.ui.component.EmptyState
 import com.adsamcik.temperaturedashboard.core.ui.component.SensorCard
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.dashboard_empty_message
+import com.adsamcik.temperaturedashboard.core.ui.resources.dashboard_empty_title
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Dashboard — responsive grid of [SensorCard]s, one per added sensor.
@@ -30,9 +34,8 @@ fun DashboardScreen(
 ) {
     if (rows.isEmpty()) {
         EmptyState(
-            title = "No sensors yet",
-            message = "Open the Add sensor tab to discover nearby ThermoPro, SwitchBot, " +
-                "Govee, BTHome v2, or ESS-standard thermometers.",
+            title = stringResource(Res.string.dashboard_empty_title),
+            message = stringResource(Res.string.dashboard_empty_message),
             modifier = modifier,
         )
         return

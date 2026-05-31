@@ -18,6 +18,18 @@ import com.adsamcik.temperaturedashboard.core.model.ReadingInterval
 import com.adsamcik.temperaturedashboard.core.model.Sensor
 import com.adsamcik.temperaturedashboard.core.model.SensorId
 import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_autostart_disabled
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_autostart_failed
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_autostart_unsupported
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_autostart_will_start
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_connecting_to
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_export_failed
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_export_ok
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_sync_failed
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_sync_ok
+import com.adsamcik.temperaturedashboard.core.ui.resources.snack_sync_skipped
+import org.jetbrains.compose.resources.getString
 import com.adsamcik.temperaturedashboard.feature.dashboard.DashboardScreen
 import com.adsamcik.temperaturedashboard.feature.dashboard.DashboardSensorRow
 import com.adsamcik.temperaturedashboard.feature.dashboard.SensorActionSheet
@@ -60,7 +72,7 @@ fun TdashApp(useCompactLayout: Boolean) {
     val coordinator = koinInject<ScanningCoordinator>()
     val historySharer = koinInject<HistorySharer>()
     val autostartManager = koinInject<AutostartManager>()
-    val backfillService = koinInject<com.adsamcik.temperaturedashboard.shared.backfill.ThermoProBackfillService>()
+    val backfillCoordinator = koinInject<com.adsamcik.temperaturedashboard.shared.backfill.BackfillCoordinator>()
     val snackbarState = remember { SnackbarHostState() }
 
     val unit by settingsRepository.observeTemperatureUnit()
@@ -160,9 +172,11 @@ fun TdashApp(useCompactLayout: Boolean) {
                         val result = if (enabled) autostartManager.enable() else autostartManager.disable()
                         autostartEnabled = autostartManager.isEnabled()
                         val msg = when (result) {
-                            AutostartResult.Ok -> if (enabled) "Will start at login" else "Autostart disabled"
-                            AutostartResult.NotSupported -> "Autostart not supported on this OS"
-                            is AutostartResult.Failed -> "Autostart failed: ${result.message}"
+                            AutostartResult.Ok -> if (enabled) {
+                                getString(Res.string.snack_autostart_will_start)
+                            } else getString(Res.string.snack_autostart_disabled)
+                            AutostartResult.NotSupported -> getString(Res.string.snack_autostart_unsupported)
+                            is AutostartResult.Failed -> getString(Res.string.snack_autostart_failed, result.message)
                         }
                         snackbarState.showSnackbar(msg)
                     }
@@ -188,7 +202,7 @@ fun TdashApp(useCompactLayout: Boolean) {
                     readingRepository = readingRepository,
                     alertRepository = alertRepository,
                     historySharer = historySharer,
-                    backfillService = backfillService,
+                    backfillCoordinator = backfillCoordinator,
                     snackbarState = snackbarState,
                 )
             },
@@ -268,7 +282,7 @@ private fun SensorDetailRoute(
     readingRepository: ReadingRepository,
     alertRepository: SensorAlertRepository,
     historySharer: HistorySharer,
-    backfillService: com.adsamcik.temperaturedashboard.shared.backfill.ThermoProBackfillService,
+    backfillCoordinator: com.adsamcik.temperaturedashboard.shared.backfill.BackfillCoordinator,
     snackbarState: SnackbarHostState,
 ) {
     var range by remember { mutableStateOf(HistoryRange.Day) }
@@ -297,19 +311,20 @@ private fun SensorDetailRoute(
     }
 
     val currentSensor = sensor
-    val isThermoPro = currentSensor?.profileId?.startsWith("thermopro.tp") == true
-    val syncHistoryCallback: (() -> Unit)? = if (isThermoPro) {
+    val capability = currentSensor?.profileId
+        ?.let { com.adsamcik.temperaturedashboard.shared.backfill.BackfillRegistry.forSensor(it) }
+    val syncHistoryCallback: (() -> Unit)? = if (capability != null && currentSensor != null) {
         {
             scope.launch {
-                snackbarState.showSnackbar("Connecting to ${currentSensor!!.displayName}…")
-                val result = backfillService.syncDayHistory(currentSensor)
+                snackbarState.showSnackbar(getString(Res.string.snack_connecting_to, currentSensor.displayName))
+                val result = backfillCoordinator.run(currentSensor)
                 val msg = when (result) {
                     is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Ok ->
-                        "Synced ${result.readingsIngested} historical readings"
+                        getString(Res.string.snack_sync_ok, result.readingsIngested)
                     is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Skipped ->
-                        "Skipped: ${result.reason}"
+                        getString(Res.string.snack_sync_skipped, result.reason)
                     is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Failed ->
-                        "Sync failed: ${result.message}"
+                        getString(Res.string.snack_sync_failed, result.message)
                 }
                 snackbarState.showSnackbar(msg)
             }
@@ -347,12 +362,13 @@ private fun SensorDetailRoute(
             }
         },
         onSyncHistory = syncHistoryCallback,
+        syncHistoryLabel = capability?.displayLabel,
     )
 }
 
-private fun ExportResult.toUserMessage(): String = when (this) {
-    is ExportResult.Saved -> "Exported $rowCount rows to $location"
-    is ExportResult.Failed -> "Export failed: $message"
+private suspend fun ExportResult.toUserMessage(): String = when (this) {
+    is ExportResult.Saved -> getString(Res.string.snack_export_ok, rowCount, location)
+    is ExportResult.Failed -> getString(Res.string.snack_export_failed, message)
 }
 
 private fun HistoryRange.toDuration() = when (this) {

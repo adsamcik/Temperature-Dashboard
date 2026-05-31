@@ -35,6 +35,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_a11y_battery
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_a11y_humidity
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_a11y_temperature
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_icon_battery
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_icon_humidity
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_card_icon_signal
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Single sensor card for the dashboard — temperature in big, humidity / battery
@@ -64,27 +72,29 @@ fun SensorCard(
         MaterialTheme.colorScheme.primary
     } else accentColor
 
-    val a11yDescription = remember(title, temperatureC, humidityPct, batteryPct, unit) {
-        buildString {
-            append(title)
-            if (temperatureC != null) {
-                append(", temperature ")
-                append(formatTemperature(temperatureC))
-                append(' ')
-                append(unit.symbol)
-            }
-            if (humidityPct != null) {
-                append(", humidity ")
-                append(humidityPct.toInt())
-                append(" percent")
-            }
-            if (batteryPct != null) {
-                append(", battery ")
-                append(batteryPct)
-                append(" percent")
-            }
-        }
+    val tempFragment = if (temperatureC != null) {
+        stringResource(
+            Res.string.sensor_card_a11y_temperature,
+            formatTemperature(temperatureC),
+            unit.symbol,
+        )
+    } else ""
+    val humidityFragment = humidityPct?.let {
+        stringResource(Res.string.sensor_card_a11y_humidity, it.toInt())
+    } ?: ""
+    val batteryFragment = batteryPct?.let {
+        stringResource(Res.string.sensor_card_a11y_battery, it)
+    } ?: ""
+    val a11yDescription = buildString {
+        append(title)
+        if (tempFragment.isNotEmpty()) { append(", "); append(tempFragment) }
+        if (humidityFragment.isNotEmpty()) { append(", "); append(humidityFragment) }
+        if (batteryFragment.isNotEmpty()) { append(", "); append(batteryFragment) }
     }
+
+    val cdHumidity = stringResource(Res.string.sensor_card_icon_humidity)
+    val cdBattery = stringResource(Res.string.sensor_card_icon_battery)
+    val cdSignal = stringResource(Res.string.sensor_card_icon_signal)
 
     Card(
         modifier = modifier
@@ -134,17 +144,17 @@ fun SensorCard(
                     if (humidityPct != null) Badge(
                         icon = Icons.Outlined.WaterDrop,
                         text = "${humidityPct.toInt()} %",
-                        iconCd = "humidity",
+                        iconCd = cdHumidity,
                     )
                     if (batteryPct != null) Badge(
                         icon = Icons.Outlined.BatteryFull,
                         text = "$batteryPct %",
-                        iconCd = "battery",
+                        iconCd = cdBattery,
                     )
                     if (rssi != null) Badge(
                         icon = Icons.Outlined.SignalCellular4Bar,
                         text = "$rssi dBm",
-                        iconCd = "signal",
+                        iconCd = cdSignal,
                     )
                 }
             }

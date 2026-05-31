@@ -28,10 +28,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashTheme
 import com.adsamcik.temperaturedashboard.core.model.SensorId
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_back
+import com.adsamcik.temperaturedashboard.core.ui.resources.sensor_detail_title
 import com.adsamcik.temperaturedashboard.shared.i18n.labelOf
 import com.adsamcik.temperaturedashboard.shared.navigation.NavStack
 import com.adsamcik.temperaturedashboard.shared.navigation.NavTarget
 import com.adsamcik.temperaturedashboard.shared.navigation.ShellDestination
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,10 +163,10 @@ private fun DetailScaffold(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sensor") },
+                title = { Text(stringResource(Res.string.sensor_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
             )

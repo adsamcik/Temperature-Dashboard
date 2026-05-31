@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Default (English) strings. Add a values-XX/strings.xml sibling for each
+    locale you want to support — Compose Multiplatform picks the closest
+    match based on the user's system locale at runtime.
+
+    All UI text must live here. Replace any `Text("…")` literal with
+    `Text(stringResource(Res.string.…))`. Generated accessor lives in
+    com.adsamcik.temperaturedashboard.core.ui.resources.Res.
+-->
+<resources>
+    <!-- App-wide -->
+    <string name="app_name">Temperature Dashboard</string>
+    <string name="sensor_detail_title">Sensor</string>
+
+    <!-- Shell destinations (bottom nav / nav rail) -->
+    <string name="shell_dashboard">Dashboard</string>
+    <string name="shell_scan">Add sensor</string>
+    <string name="shell_settings">Settings</string>
+
+    <!-- Common verbs -->
+    <string name="action_add">Add</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_show">Show</string>
+    <string name="action_back">Back</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_plus_add">+ Add</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_empty_title">No sensors yet</string>
+    <string name="dashboard_empty_message">Open the Add sensor tab to discover nearby ThermoPro, SwitchBot, Govee, BTHome v2, or ESS-standard thermometers.</string>
+
+    <!-- Sensor card a11y -->
+    <string name="sensor_card_a11y_no_reading">no reading yet</string>
+    <string name="sensor_card_a11y_humidity">humidity %1$d percent</string>
+    <string name="sensor_card_a11y_battery">battery %1$d percent</string>
+    <string name="sensor_card_a11y_temperature">temperature %1$s %2$s</string>
+    <string name="sensor_card_icon_humidity">humidity</string>
+    <string name="sensor_card_icon_battery">battery</string>
+    <string name="sensor_card_icon_signal">signal</string>
+
+    <!-- Scan -->
+    <string name="scan_scanning">Scanning for sensors…</string>
+    <string name="scan_paused">Scan paused</string>
+    <string name="scan_empty_looking">Looking for sensors…</string>
+    <string name="scan_empty_tap_start">Tap Start to scan</string>
+    <string name="scan_empty_message">Discovered sensors will show up here. Power-cycle the device to ensure it\'s actively broadcasting.</string>
+
+    <!-- Sensor action sheet -->
+    <string name="action_change_color">Change colour</string>
+    <string name="action_hide">Hide from dashboard</string>
+    <string name="action_unhide">Show on dashboard</string>
+    <string name="action_history_kept_either_way">History is kept either way.</string>
+    <string name="action_delete_supporting">Removes the sensor and all its history.</string>
+    <string name="dialog_delete_title">Delete %1$s?</string>
+    <string name="dialog_delete_text">This removes the sensor and all its recorded history. You can re-add it from Add sensor, but the old history won\'t come back.</string>
+    <string name="dialog_rename_title">Rename sensor</string>
+    <string name="dialog_rename_label">Name</string>
+    <string name="dialog_color_title">Sensor colour</string>
+    <string name="dialog_color_explainer">Picks the accent for the dashboard card dot, the sparkline, and the chart line in detail view.</string>
+    <string name="dialog_color_swatch_a11y">Color swatch</string>
+
+    <!-- Sensor detail -->
+    <string name="detail_sensor_not_found_title">Sensor not found</string>
+    <string name="detail_sensor_not_found_message">This sensor may have been deleted.</string>
+    <string name="detail_humidity">Humidity</string>
+    <string name="detail_compare_to">Compare to</string>
+    <string name="detail_overlay_none">None</string>
+    <string name="detail_range_stats">Range stats</string>
+    <string name="detail_stat_min">Min</string>
+    <string name="detail_stat_avg">Avg</string>
+    <string name="detail_stat_max">Max</string>
+    <string name="detail_stat_unknown">—</string>
+    <string name="detail_coverage">Coverage: %1$d%%</string>
+    <string name="detail_export_csv">Export CSV</string>
+    <string name="detail_export_json">Export JSON</string>
+    <string name="detail_sync_history_default">Sync history from device (BETA)</string>
+
+    <!-- Chart range labels -->
+    <string name="range_1h">1H</string>
+    <string name="range_1d">1D</string>
+    <string name="range_1w">1W</string>
+    <string name="range_1m">1M</string>
+    <string name="range_1y">1Y</string>
+
+    <!-- Alerts -->
+    <string name="alerts_title">Alerts</string>
+    <string name="alerts_empty">No alerts configured. Tap + Add to be notified when this sensor crosses a threshold.</string>
+    <string name="alerts_dialog_title">New alert</string>
+    <string name="alerts_dialog_type">Type</string>
+    <string name="alerts_dialog_threshold">Threshold: %1$s</string>
+    <string name="alerts_dialog_cooldown">Cooldown: %1$d min</string>
+    <string name="alerts_dialog_cooldown_help">Once fired, this alert can\'t fire again for this long even if the value stays past the threshold.</string>
+    <string name="alert_kind_temp_above">Temperature above</string>
+    <string name="alert_kind_temp_below">Temperature below</string>
+    <string name="alert_kind_humidity_above">Humidity above</string>
+    <string name="alert_kind_humidity_below">Humidity below</string>
+    <string name="alert_kind_battery_below">Battery below</string>
+    <string name="alert_label_temp_above">Temperature &gt; %1$s °C</string>
+    <string name="alert_label_temp_below">Temperature &lt; %1$s °C</string>
+    <string name="alert_label_humidity_above">Humidity &gt; %1$d %%</string>
+    <string name="alert_label_humidity_below">Humidity &lt; %1$d %%</string>
+    <string name="alert_label_battery_below">Battery &lt; %1$d %%</string>
+
+    <!-- Threshold duration card -->
+    <string name="threshold_card_title">Time at threshold</string>
+    <string name="threshold_mode_above">Above</string>
+    <string name="threshold_mode_below">Below</string>
+    <string name="threshold_value">Threshold %1$s °C</string>
+    <string name="threshold_summary">Of the times this sensor was reporting in the current range, it was %1$s %2$s °C for %3$s.</string>
+    <string name="duration_zero">0 min</string>
+
+    <!-- Year heatmap -->
+    <string name="heatmap_title">Daily average temperature, last 365 days</string>
+    <string name="heatmap_empty">No data yet — heatmap fills in as readings accumulate.</string>
+    <string name="heatmap_a11y_summary">Heatmap of %1$d days of temperature data. Range from %2$s to %3$s degrees Celsius.</string>
+
+    <!-- Settings -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_material_you_title">Material You colour</string>
+    <string name="settings_material_you_help">On Android 12+ the colour scheme follows your wallpaper. Turn off for the warm-coral default.</string>
+    <string name="settings_temperature_unit">Temperature unit</string>
+    <string name="settings_coalescing_thresholds">Coalescing thresholds</string>
+    <string name="settings_coalescing_help">Smaller thresholds capture more detail but write more rows. Defaults work well for ThermoPro, SwitchBot, and Govee devices.</string>
+    <string name="settings_coalescing_temp_label">Temperature Δ (°C)</string>
+    <string name="settings_coalescing_humidity_label">Humidity Δ (%%)</string>
+    <string name="settings_stale_window">Stale window</string>
+    <string name="settings_stale_window_help">If no advertisement arrives in this window, the current interval freezes and chart gaps show as gaps (not stale held values).</string>
+    <string name="settings_stale_window_label">Window (minutes)</string>
+    <string name="settings_stale_window_value">%1$d min</string>
+    <string name="settings_hidden_sensors">Hidden sensors</string>
+    <string name="settings_start_at_login">Start at login</string>
+    <string name="settings_start_at_login_title">Launch automatically when you sign in</string>
+    <string name="settings_start_at_login_help">Keeps your sensors recording even after a reboot.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_version">Temperature Dashboard · v0.3.0</string>
+    <string name="settings_about_tagline">Universal Bluetooth temperature &amp; humidity sensor dashboard.</string>
+    <string name="settings_oss_title">Open source libraries</string>
+
+    <!-- Snackbar messages -->
+    <string name="snack_autostart_will_start">Will start at login</string>
+    <string name="snack_autostart_disabled">Autostart disabled</string>
+    <string name="snack_autostart_unsupported">Autostart not supported on this OS</string>
+    <string name="snack_autostart_failed">Autostart failed: %1$s</string>
+    <string name="snack_connecting_to">Connecting to %1$s…</string>
+    <string name="snack_sync_ok">Synced %1$d historical readings</string>
+    <string name="snack_sync_skipped">Skipped: %1$s</string>
+    <string name="snack_sync_failed">Sync failed: %1$s</string>
+    <string name="snack_export_ok">Exported %1$d rows to %2$s</string>
+    <string name="snack_export_failed">Export failed: %1$s</string>
+</resources>

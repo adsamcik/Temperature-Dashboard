@@ -22,6 +22,16 @@ import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.IntervalAggregator
 import com.adsamcik.temperaturedashboard.core.model.ReadingInterval
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.duration_zero
+import com.adsamcik.temperaturedashboard.core.ui.resources.threshold_card_title
+import com.adsamcik.temperaturedashboard.core.ui.resources.threshold_mode_above
+import com.adsamcik.temperaturedashboard.core.ui.resources.threshold_mode_below
+import com.adsamcik.temperaturedashboard.core.ui.resources.threshold_summary
+import com.adsamcik.temperaturedashboard.core.ui.resources.threshold_value
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import kotlin.time.Duration
 
 /**
@@ -36,7 +46,9 @@ fun ThresholdDurationCard(
     modifier: Modifier = Modifier,
 ) {
     var modeIndex by remember { mutableStateOf(0) }
-    val modes = listOf("Above", "Below")
+    val modesAbove = stringResource(Res.string.threshold_mode_above)
+    val modesBelow = stringResource(Res.string.threshold_mode_below)
+    val modes = listOf(modesAbove, modesBelow)
     var threshold by remember { mutableStateOf(20.0) }
 
     val duration: Duration = remember(intervals, modeIndex, threshold) {
@@ -46,6 +58,7 @@ fun ThresholdDurationCard(
         }
     }
 
+    val zero = stringResource(Res.string.duration_zero)
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -54,7 +67,11 @@ fun ThresholdDurationCard(
             modifier = Modifier.padding(TdashSpacing.m),
             verticalArrangement = Arrangement.spacedBy(TdashSpacing.s),
         ) {
-            Text("Time at threshold", style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(Res.string.threshold_card_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s)) {
                 modes.forEachIndexed { idx, label ->
                     FilterChip(
@@ -69,12 +86,12 @@ fun ThresholdDurationCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Threshold ${formatDecimal(threshold, 1)} °C",
+                    text = stringResource(Res.string.threshold_value, formatDecimal(threshold, 1)),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    text = duration.humanReadable(),
+                    text = duration.humanReadable(zero),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -85,9 +102,12 @@ fun ThresholdDurationCard(
                 valueRange = -20f..50f,
             )
             Text(
-                text = "Of the times this sensor was reporting in the current range, " +
-                    "it was ${modes[modeIndex].lowercase()} ${formatDecimal(threshold, 1)} °C " +
-                    "for ${duration.humanReadable()}.",
+                text = stringResource(
+                    Res.string.threshold_summary,
+                    modes[modeIndex].lowercase(),
+                    formatDecimal(threshold, 1),
+                    duration.humanReadable(zero),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -95,9 +115,9 @@ fun ThresholdDurationCard(
     }
 }
 
-private fun Duration.humanReadable(): String {
+private fun Duration.humanReadable(zero: String): String {
     val totalMin = inWholeMinutes
-    if (totalMin <= 0L) return "0 min"
+    if (totalMin <= 0L) return zero
     val days = totalMin / (60 * 24)
     val hours = (totalMin / 60) % 24
     val minutes = totalMin % 60

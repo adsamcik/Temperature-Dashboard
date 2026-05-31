@@ -20,6 +20,16 @@ import androidx.compose.ui.Modifier
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.SensorAddress
 import com.adsamcik.temperaturedashboard.core.ui.component.EmptyState
+import com.adsamcik.temperaturedashboard.core.ui.resources.Res
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_add
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_start
+import com.adsamcik.temperaturedashboard.core.ui.resources.action_stop
+import com.adsamcik.temperaturedashboard.core.ui.resources.scan_empty_looking
+import com.adsamcik.temperaturedashboard.core.ui.resources.scan_empty_message
+import com.adsamcik.temperaturedashboard.core.ui.resources.scan_empty_tap_start
+import com.adsamcik.temperaturedashboard.core.ui.resources.scan_paused
+import com.adsamcik.temperaturedashboard.core.ui.resources.scan_scanning
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Add-sensor flow. Renders a live list of advertised devices that matched a
@@ -44,12 +54,12 @@ fun ScanScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = if (isScanning) "Scanning for sensors…" else "Scan paused",
+                text = if (isScanning) stringResource(Res.string.scan_scanning) else stringResource(Res.string.scan_paused),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
             Button(onClick = if (isScanning) onStop else onStart) {
-                Text(if (isScanning) "Stop" else "Start")
+                Text(if (isScanning) stringResource(Res.string.action_stop) else stringResource(Res.string.action_start))
             }
         }
 
@@ -63,9 +73,8 @@ fun ScanScreen(
 
         if (discoveries.isEmpty()) {
             EmptyState(
-                title = if (isScanning) "Looking for sensors…" else "Tap Start to scan",
-                message = "Discovered sensors will show up here. Power-cycle the device " +
-                    "to ensure it's actively broadcasting.",
+                title = if (isScanning) stringResource(Res.string.scan_empty_looking) else stringResource(Res.string.scan_empty_tap_start),
+                message = stringResource(Res.string.scan_empty_message),
             )
             return@Column
         }
@@ -117,7 +126,7 @@ private fun DiscoveryCard(discovery: ScanDiscovery, onAdd: () -> Unit) {
                     )
                 }
             }
-            Button(onClick = onAdd) { Text("Add") }
+            Button(onClick = onAdd) { Text(stringResource(Res.string.action_add)) }
         }
     }
 }

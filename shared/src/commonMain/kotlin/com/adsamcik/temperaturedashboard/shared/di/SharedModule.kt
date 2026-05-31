@@ -44,8 +44,9 @@ val sharedModule: Module = module {
     // Alerts: Notifier is provided per platform; AlertEvaluator is common.
     single { AlertEvaluator(get(), get()) }
 
-    // ThermoPro GATT backfill (Android only; Desktop throws)
-    single { com.adsamcik.temperaturedashboard.shared.backfill.ThermoProBackfillService(get(), get()) }
+    // GATT history backfill — coordinator looks up capabilities in
+    // BackfillRegistry by sensor profile id.
+    single { com.adsamcik.temperaturedashboard.shared.backfill.BackfillCoordinator(get(), get()) }
 
     // Interpreter + coordinator
     single { AdvertisementInterpreter(get()) }

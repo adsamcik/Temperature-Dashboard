@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Czech (cs) translations. -->
+<resources>
+    <string name="app_name">Teplotní přehled</string>
+    <string name="sensor_detail_title">Senzor</string>
+
+    <string name="shell_dashboard">Přehled</string>
+    <string name="shell_scan">Přidat senzor</string>
+    <string name="shell_settings">Nastavení</string>
+
+    <string name="action_add">Přidat</string>
+    <string name="action_cancel">Zrušit</string>
+    <string name="action_save">Uložit</string>
+    <string name="action_delete">Smazat</string>
+    <string name="action_rename">Přejmenovat</string>
+    <string name="action_show">Zobrazit</string>
+    <string name="action_back">Zpět</string>
+    <string name="action_start">Spustit</string>
+    <string name="action_stop">Zastavit</string>
+    <string name="action_plus_add">+ Přidat</string>
+
+    <string name="dashboard_empty_title">Zatím žádné senzory</string>
+    <string name="dashboard_empty_message">Otevřete kartu Přidat senzor a najděte v dosahu teploměry ThermoPro, SwitchBot, Govee, BTHome v2 nebo ESS-standard.</string>
+
+    <string name="sensor_card_a11y_no_reading">zatím žádné čtení</string>
+    <string name="sensor_card_a11y_humidity">vlhkost %1$d procent</string>
+    <string name="sensor_card_a11y_battery">baterie %1$d procent</string>
+    <string name="sensor_card_a11y_temperature">teplota %1$s %2$s</string>
+    <string name="sensor_card_icon_humidity">vlhkost</string>
+    <string name="sensor_card_icon_battery">baterie</string>
+    <string name="sensor_card_icon_signal">síla signálu</string>
+
+    <string name="scan_scanning">Vyhledávám senzory…</string>
+    <string name="scan_paused">Vyhledávání pozastaveno</string>
+    <string name="scan_empty_looking">Hledám senzory…</string>
+    <string name="scan_empty_tap_start">Stiskněte Spustit pro vyhledávání</string>
+    <string name="scan_empty_message">Nalezené senzory se zobrazí zde. Restartujte zařízení, aby aktivně vysílalo.</string>
+
+    <string name="action_change_color">Změnit barvu</string>
+    <string name="action_hide">Skrýt z přehledu</string>
+    <string name="action_unhide">Zobrazit v přehledu</string>
+    <string name="action_history_kept_either_way">Historie je zachována tak či tak.</string>
+    <string name="action_delete_supporting">Odstraní senzor a veškerou jeho historii.</string>
+    <string name="dialog_delete_title">Smazat %1$s?</string>
+    <string name="dialog_delete_text">Odstraní senzor a veškerou zaznamenanou historii. Můžete jej znovu přidat z Přidat senzor, ale stará historie se nevrátí.</string>
+    <string name="dialog_rename_title">Přejmenovat senzor</string>
+    <string name="dialog_rename_label">Název</string>
+    <string name="dialog_color_title">Barva senzoru</string>
+    <string name="dialog_color_explainer">Vybírá akcent pro tečku na kartě, sparkline a čáru grafu v detailu.</string>
+    <string name="dialog_color_swatch_a11y">Vzorek barvy</string>
+
+    <string name="detail_sensor_not_found_title">Senzor nenalezen</string>
+    <string name="detail_sensor_not_found_message">Tento senzor mohl být smazán.</string>
+    <string name="detail_humidity">Vlhkost</string>
+    <string name="detail_compare_to">Porovnat s</string>
+    <string name="detail_overlay_none">Žádný</string>
+    <string name="detail_range_stats">Statistiky rozsahu</string>
+    <string name="detail_stat_min">Min</string>
+    <string name="detail_stat_avg">Prům</string>
+    <string name="detail_stat_max">Max</string>
+    <string name="detail_stat_unknown">—</string>
+    <string name="detail_coverage">Pokrytí: %1$d%%</string>
+    <string name="detail_export_csv">Exportovat CSV</string>
+    <string name="detail_export_json">Exportovat JSON</string>
+    <string name="detail_sync_history_default">Synchronizovat historii ze zařízení (BETA)</string>
+
+    <string name="range_1h">1H</string>
+    <string name="range_1d">1D</string>
+    <string name="range_1w">1T</string>
+    <string name="range_1m">1M</string>
+    <string name="range_1y">1R</string>
+
+    <string name="alerts_title">Upozornění</string>
+    <string name="alerts_empty">Žádná upozornění. Stiskněte + Přidat pro upozornění při překročení prahu.</string>
+    <string name="alerts_dialog_title">Nové upozornění</string>
+    <string name="alerts_dialog_type">Typ</string>
+    <string name="alerts_dialog_threshold">Práh: %1$s</string>
+    <string name="alerts_dialog_cooldown">Klid: %1$d min</string>
+    <string name="alerts_dialog_cooldown_help">Po vyvolání nemůže být toto upozornění vyvoláno znovu po tuto dobu, i když hodnota zůstává mimo práh.</string>
+    <string name="alert_kind_temp_above">Teplota nad</string>
+    <string name="alert_kind_temp_below">Teplota pod</string>
+    <string name="alert_kind_humidity_above">Vlhkost nad</string>
+    <string name="alert_kind_humidity_below">Vlhkost pod</string>
+    <string name="alert_kind_battery_below">Baterie pod</string>
+    <string name="alert_label_temp_above">Teplota &gt; %1$s °C</string>
+    <string name="alert_label_temp_below">Teplota &lt; %1$s °C</string>
+    <string name="alert_label_humidity_above">Vlhkost &gt; %1$d %%</string>
+    <string name="alert_label_humidity_below">Vlhkost &lt; %1$d %%</string>
+    <string name="alert_label_battery_below">Baterie &lt; %1$d %%</string>
+
+    <string name="threshold_card_title">Čas u prahu</string>
+    <string name="threshold_mode_above">Nad</string>
+    <string name="threshold_mode_below">Pod</string>
+    <string name="threshold_value">Práh %1$s °C</string>
+    <string name="threshold_summary">Z času, kdy senzor vysílal v aktuálním rozsahu, byl %1$s %2$s °C po dobu %3$s.</string>
+    <string name="duration_zero">0 min</string>
+
+    <string name="heatmap_title">Denní průměrná teplota, posledních 365 dnů</string>
+    <string name="heatmap_empty">Zatím žádná data — mapa se vyplní s přibývajícím počtem měření.</string>
+    <string name="heatmap_a11y_summary">Mapa intenzity %1$d dnů teplotních dat. Rozsah od %2$s do %3$s stupňů Celsia.</string>
+
+    <string name="settings_appearance">Vzhled</string>
+    <string name="settings_theme">Motiv</string>
+    <string name="settings_theme_system">Systémový</string>
+    <string name="settings_theme_light">Světlý</string>
+    <string name="settings_theme_dark">Tmavý</string>
+    <string name="settings_material_you_title">Barva Material You</string>
+    <string name="settings_material_you_help">Na Androidu 12+ barvy odpovídají vaší tapetě. Vypnutím získáte výchozí teplý korál.</string>
+    <string name="settings_temperature_unit">Jednotka teploty</string>
+    <string name="settings_coalescing_thresholds">Prahové hodnoty slučování</string>
+    <string name="settings_coalescing_help">Menší prahy zachytí více detailu, ale zapíší více řádků. Výchozí hodnoty fungují dobře pro ThermoPro, SwitchBot a Govee.</string>
+    <string name="settings_coalescing_temp_label">Teplota Δ (°C)</string>
+    <string name="settings_coalescing_humidity_label">Vlhkost Δ (%%)</string>
+    <string name="settings_stale_window">Okno zastarání</string>
+    <string name="settings_stale_window_help">Pokud v tomto okně nepřijde žádné vysílání, aktuální interval se uzavře a v grafu se zobrazí mezera (ne staré držené hodnoty).</string>
+    <string name="settings_stale_window_label">Okno (minuty)</string>
+    <string name="settings_stale_window_value">%1$d min</string>
+    <string name="settings_hidden_sensors">Skryté senzory</string>
+    <string name="settings_start_at_login">Spustit po přihlášení</string>
+    <string name="settings_start_at_login_title">Spustit automaticky po přihlášení</string>
+    <string name="settings_start_at_login_help">Senzory pokračují v záznamu i po restartu.</string>
+    <string name="settings_about">O aplikaci</string>
+    <string name="settings_about_version">Temperature Dashboard · v0.3.0</string>
+    <string name="settings_about_tagline">Univerzální Bluetooth přehled teplotních a vlhkostních senzorů.</string>
+    <string name="settings_oss_title">Open source knihovny</string>
+
+    <string name="snack_autostart_will_start">Spustí se po přihlášení</string>
+    <string name="snack_autostart_disabled">Automatické spuštění vypnuto</string>
+    <string name="snack_autostart_unsupported">Automatické spuštění není v tomto OS podporováno</string>
+    <string name="snack_autostart_failed">Automatické spuštění selhalo: %1$s</string>
+    <string name="snack_connecting_to">Připojuji k %1$s…</string>
+    <string name="snack_sync_ok">Synchronizováno %1$d historických měření</string>
+    <string name="snack_sync_skipped">Přeskočeno: %1$s</string>
+    <string name="snack_sync_failed">Synchronizace selhala: %1$s</string>
+    <string name="snack_export_ok">Exportováno %1$d řádků do %2$s</string>
+    <string name="snack_export_failed">Export selhal: %1$s</string>
+</resources>
