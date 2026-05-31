@@ -6,6 +6,8 @@ import com.adsamcik.temperaturedashboard.ble.android.AndroidBluetoothAdapterMoni
 import com.adsamcik.temperaturedashboard.ble.api.BleScanner
 import com.adsamcik.temperaturedashboard.ble.api.BluetoothAdapterMonitor
 import com.adsamcik.temperaturedashboard.core.database.DatabaseFactory
+import com.adsamcik.temperaturedashboard.shared.alerts.AndroidNotifier
+import com.adsamcik.temperaturedashboard.shared.alerts.Notifier
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.SharedPreferencesSettings
 import org.koin.android.ext.koin.androidContext
@@ -25,4 +27,5 @@ val androidPlatformModule: Module = module {
 
     single<BleScanner> { AndroidBleScanner(androidContext()) }
     single<BluetoothAdapterMonitor> { AndroidBluetoothAdapterMonitor(androidContext()) }
+    single<Notifier> { AndroidNotifier(androidContext()) }
 }

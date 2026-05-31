@@ -50,7 +50,11 @@ fun SensorDetailScreen(
     stats: IntervalStats,
     range: HistoryRange,
     unit: TemperatureUnit,
+    alerts: List<com.adsamcik.temperaturedashboard.core.model.SensorAlert>,
     onRangeChange: (HistoryRange) -> Unit,
+    onToggleAlert: (com.adsamcik.temperaturedashboard.core.model.SensorAlert, Boolean) -> Unit,
+    onAddAlert: (com.adsamcik.temperaturedashboard.core.model.AlertKind) -> Unit,
+    onDeleteAlert: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (sensor == null) {
@@ -105,6 +109,14 @@ fun SensorDetailScreen(
         StatsPanel(
             stats = stats,
             unit = unit,
+            modifier = Modifier.padding(top = TdashSpacing.l),
+        )
+
+        AlertsPanel(
+            alerts = alerts,
+            onToggle = onToggleAlert,
+            onAdd = onAddAlert,
+            onDelete = onDeleteAlert,
             modifier = Modifier.padding(top = TdashSpacing.l),
         )
     }

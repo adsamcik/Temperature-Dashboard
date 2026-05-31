@@ -73,6 +73,11 @@ private val DarkColors: ColorScheme = darkColorScheme(
  * user's wallpaper; everywhere else we fall back to the warm-coral static
  * scheme above. The platform-specific [dynamicColorSchemeOrNull] expect/actual
  * does the platform check.
+ *
+ * On Android we additionally wrap content in [ExpressiveSurface] which
+ * applies `MaterialExpressiveTheme` with `MotionScheme.expressive()` —
+ * bouncier springs, more energetic transitions, the M3-Expressive feel.
+ * Desktop falls back to stock M3.
  */
 @Composable
 fun TdashTheme(
@@ -86,10 +91,24 @@ fun TdashTheme(
     MaterialTheme(
         colorScheme = scheme,
         typography = TdashTypography,
-        content = content,
-    )
+    ) {
+        ExpressiveSurface(colorScheme = scheme, typography = TdashTypography, content = content)
+    }
 }
 
 /** Resolves Material You / dynamic colour where available, or null. */
 @Composable
 expect fun dynamicColorSchemeOrNull(darkTheme: Boolean): ColorScheme?
+
+/**
+ * Wraps [content] in `MaterialExpressiveTheme` on Android (M3 Expressive
+ * spring physics, motion scheme, ripple) and in stock [MaterialTheme] on
+ * Desktop. Both branches preserve the [colorScheme] and [typography] passed
+ * in, so theming is unified across the inner Material* call.
+ */
+@Composable
+expect fun ExpressiveSurface(
+    colorScheme: ColorScheme,
+    typography: androidx.compose.material3.Typography,
+    content: @Composable () -> Unit,
+)

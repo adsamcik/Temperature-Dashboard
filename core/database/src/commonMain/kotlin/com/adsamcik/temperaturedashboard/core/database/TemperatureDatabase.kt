@@ -9,14 +9,19 @@ import androidx.room.RoomDatabaseConstructor
     entities = [
         SensorEntity::class,
         ReadingIntervalEntity::class,
+        SensorAlertEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
+    autoMigrations = [
+        androidx.room.AutoMigration(from = 1, to = 2),
+    ],
 )
 @ConstructedBy(TemperatureDatabaseConstructor::class)
 abstract class TemperatureDatabase : RoomDatabase() {
     abstract fun sensorDao(): SensorDao
     abstract fun readingIntervalDao(): ReadingIntervalDao
+    abstract fun sensorAlertDao(): SensorAlertDao
 }
 
 /**

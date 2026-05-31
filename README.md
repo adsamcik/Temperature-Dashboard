@@ -98,7 +98,7 @@ cd ble/btleplug-jni && cargo build --release
 
 ## Status
 
-🟢 **v0.1.0 — end-to-end functional.** Both Android (APK) and Desktop (jar + native installer) build green from a single commit. CI workflows live under `.github/workflows/`.
+🟢 **v0.2.0 — feature-complete v1.** Both Android (APK) and Desktop (jar + native installer) build green from a single commit. CI workflows live under `.github/workflows/`.
 
 Done:
 - ✅ Phase 0 — scaffold, 19 modules, both targets compile
@@ -111,14 +111,16 @@ Done:
 - ✅ Phase 7 — Scan & add-sensor flow
 - ✅ Phase 8 — SensorDetail with stepped chart, range chips, time-weighted stats
 - ✅ Phase 9 — Settings (units, coalescing thresholds, stale window, about)
-- ✅ Phase 10 — adaptive launcher icon + polish (still iterating; see roadmap)
+- ✅ Phase 10 — adaptive launcher icon + polish
 - ✅ Phase 11 — CI (PR check) + Release (per-OS native installers + APK + AAB)
+- ✅ v0.2.0 — **Desktop tray-icon background mode** · **M3 Expressive on Android** ·
+  **per-sensor threshold alerts** (with Android notification channel + Desktop tray balloons)
 
 Roadmap:
-- Desktop tray-icon background mode (the native installer ships now; tray is next)
-- M3 Expressive components (FAB Menu, spring physics) once Compose Multiplatform tracks androidx.compose.material3 1.4+
-- Per-sensor threshold alerts (notification when temp crosses a user-set line)
 - iOS port (KMP-ready already; just needs `iosMain` + a Mac to build)
+- Multi-sensor overlay charts (compare two sensors on the same axes)
+- Backfill via GATT history for ThermoPro (the device buffers minute/hour/day series — `ThermoProTP35xProfile.actions` already exposes the opcodes)
+- Per-sensor color customisation
 
 ## License
 

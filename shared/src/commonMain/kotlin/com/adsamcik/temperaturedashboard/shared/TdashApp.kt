@@ -47,6 +47,7 @@ import kotlin.time.Duration.Companion.hours
 fun TdashApp(useCompactLayout: Boolean) {
     val sensorRepository = koinInject<SensorRepository>()
     val readingRepository = koinInject<ReadingRepository>()
+    val alertRepository = koinInject<com.adsamcik.temperaturedashboard.shared.alerts.SensorAlertRepository>()
     val settingsRepository = koinInject<SettingsRepository>()
     val coordinator = koinInject<ScanningCoordinator>()
 
@@ -136,6 +137,7 @@ fun TdashApp(useCompactLayout: Boolean) {
                 unit = unit,
                 sensorRepository = sensorRepository,
                 readingRepository = readingRepository,
+                alertRepository = alertRepository,
             )
         },
         useCompactLayout = useCompactLayout,
@@ -178,6 +180,7 @@ private fun SensorDetailRoute(
     unit: TemperatureUnit,
     sensorRepository: SensorRepository,
     readingRepository: ReadingRepository,
+    alertRepository: com.adsamcik.temperaturedashboard.shared.alerts.SensorAlertRepository,
 ) {
     var range by remember { mutableStateOf(HistoryRange.Day) }
     val sensor by sensorRepository.observe(sensorId).collectAsState(initial = null)
@@ -188,6 +191,8 @@ private fun SensorDetailRoute(
         from = now - window,
         until = now,
     ).collectAsState(initial = emptyList())
+    val alerts by alertRepository.observeForSensor(sensorId).collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
     val stats = remember(intervals, window) {
         com.adsamcik.temperaturedashboard.core.model.IntervalAggregator
@@ -200,7 +205,13 @@ private fun SensorDetailRoute(
         stats = stats,
         range = range,
         unit = unit,
+        alerts = alerts,
         onRangeChange = { range = it },
+        onToggleAlert = { alert, enabled ->
+            scope.launch { alertRepository.setEnabled(alert, enabled) }
+        },
+        onAddAlert = { kind -> scope.launch { alertRepository.add(sensorId, kind) } },
+        onDeleteAlert = { id -> scope.launch { alertRepository.delete(id) } },
     )
 }
 
