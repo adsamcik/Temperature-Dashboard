@@ -5,7 +5,7 @@ import com.adsamcik.temperaturedashboard.decoder.api.DecoderRegistry
 import com.adsamcik.temperaturedashboard.decoder.api.DeviceProfile
 import com.adsamcik.temperaturedashboard.decoder.api.DeviceProfileRegistry
 import com.adsamcik.temperaturedashboard.decoder.builtins.bthome.BTHomeV2Decoder
-import com.adsamcik.temperaturedashboard.decoder.builtins.profile.SwitchBotMeterProfile
+import com.adsamcik.temperaturedashboard.decoder.builtins.profile.SwitchBotProfile
 import com.adsamcik.temperaturedashboard.decoder.builtins.profile.ThermoProTP35xNotifyDecoder
 import com.adsamcik.temperaturedashboard.decoder.builtins.profile.ThermoProTP35xProfile
 import com.adsamcik.temperaturedashboard.decoder.builtins.sig.BatteryLevelDecoder
@@ -44,7 +44,7 @@ object BuiltinDecoders {
 
     val PROFILES: List<DeviceProfile> = listOf(
         ThermoProTP35xProfile,
-        SwitchBotMeterProfile,
+        SwitchBotProfile,
     )
 
     fun newRegistry(): DecoderRegistry = DecoderRegistry(ALL)

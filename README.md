@@ -2,7 +2,7 @@
 
 A universal Bluetooth temperature & humidity sensor dashboard. Runs on **Android**, **Windows**, **Linux**, and **macOS** from a single Kotlin codebase. Local-only, no cloud, history kept forever.
 
-First-class support for **ThermoPro TP35x**, **SwitchBot Meter / Meter Plus / Hub 2**, **BTHome v2** (Shelly, ESPHome, DIY), **BLE Environmental Sensing Service**, and **BLE Health Thermometer** out of the box — one app for every common consumer BLE thermometer/hygrometer.
+First-class support for **ThermoPro TP35x**, the entire **SwitchBot Thermo-Hygrometer family** (Meter, Meter Plus, Hub 2, Indoor/Outdoor W3400010, Meter Pro), **BTHome v2** (Shelly, ESPHome, DIY), **BLE Environmental Sensing Service**, and **BLE Health Thermometer** out of the box — one app for every common consumer BLE thermometer/hygrometer.
 
 ## Why this app exists
 
