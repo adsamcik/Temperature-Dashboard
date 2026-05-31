@@ -1,8 +1,14 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
+// Root build file — all configuration lives in convention plugins under build-logic/.
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.kotlin.ksp) apply false
-    alias(libs.plugins.hilt.android) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.compose.compiler) apply false
+    alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.room) apply false
+    alias(libs.plugins.detekt) apply false
 }
