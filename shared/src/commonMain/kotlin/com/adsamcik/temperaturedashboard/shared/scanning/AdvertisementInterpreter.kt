@@ -29,6 +29,7 @@ class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistr
             name = advert.name,
             advertisedServiceUuids = advert.serviceUuids,
             manufacturerData = advert.manufacturerData,
+            serviceData = advert.serviceData,
         )
         val profile = profileRegistry.firstMatch(snapshot) ?: return null
         val fields = profile.decodeAdvertisement(snapshot)

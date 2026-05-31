@@ -46,11 +46,15 @@ interface DeviceProfile {
  * A minimal snapshot of what we know about an advertising device, suitable
  * for matching and decoding. Decoder profiles only need a few fields, so we
  * keep this DTO small and decoupled from the larger app-side scan model.
+ *
+ * [serviceData] keys are full 128-bit UUIDs (uppercase). Use
+ * [UuidMatcher.matches] to compare against 16-bit short forms.
  */
 data class AdvertisementSnapshot(
     val name: String?,
     val advertisedServiceUuids: List<String>,
     val manufacturerData: Map<Int, ByteArray>,
+    val serviceData: Map<String, ByteArray> = emptyMap(),
 )
 
 /**
