@@ -79,11 +79,15 @@ class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistr
     }
 
     private fun String.containsLikelyKnownToken(): Boolean {
+        // Only flag tokens that genuinely indicate a thermometer-family device.
+        // Bare "Govee" / "GV" without an H5xxx/GV5179 suffix is almost always
+        // a Govee appliance (light strip, ice maker, etc.) and not in scope.
         val tokens = listOf(
-            "Govee", "GVH", "ihoment", "GV5",
+            "GVH5", "ihoment",
             "H5072", "H5074", "H5075", "H5100", "H5101", "H5102", "H5103",
             "H5104", "H5105", "H5108", "H5110", "H5174", "H5177",
-            "WoSensorTH", "WoHand", "WoMeter", "WoIOSensorTH",
+            "GV5179",
+            "WoSensorTH", "WoIOSensorTH", "WoMeter",
             "TP35",
         )
         return tokens.any { it in this }

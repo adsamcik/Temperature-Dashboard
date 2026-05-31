@@ -75,7 +75,7 @@
     <string name="detail_stat_avg">Avg</string>
     <string name="detail_stat_max">Max</string>
     <string name="detail_stat_unknown">—</string>
-    <string name="detail_coverage">Coverage: %1$d%%</string>
+    <string name="detail_coverage">Coverage: %1$d%</string>
     <string name="detail_export_csv">Export CSV</string>
     <string name="detail_export_json">Export JSON</string>
     <string name="detail_sync_history_default">Sync history from device (BETA)</string>
@@ -102,9 +102,9 @@
     <string name="alert_kind_battery_below">Battery below</string>
     <string name="alert_label_temp_above">Temperature &gt; %1$s °C</string>
     <string name="alert_label_temp_below">Temperature &lt; %1$s °C</string>
-    <string name="alert_label_humidity_above">Humidity &gt; %1$d %%</string>
-    <string name="alert_label_humidity_below">Humidity &lt; %1$d %%</string>
-    <string name="alert_label_battery_below">Battery &lt; %1$d %%</string>
+    <string name="alert_label_humidity_above">Humidity &gt; %1$d %</string>
+    <string name="alert_label_humidity_below">Humidity &lt; %1$d %</string>
+    <string name="alert_label_battery_below">Battery &lt; %1$d %</string>
 
     <!-- Threshold duration card -->
     <string name="threshold_card_title">Time at threshold</string>
@@ -131,7 +131,7 @@
     <string name="settings_coalescing_thresholds">Coalescing thresholds</string>
     <string name="settings_coalescing_help">Smaller thresholds capture more detail but write more rows. Defaults work well for ThermoPro, SwitchBot, and Govee devices.</string>
     <string name="settings_coalescing_temp_label">Temperature Δ (°C)</string>
-    <string name="settings_coalescing_humidity_label">Humidity Δ (%%)</string>
+    <string name="settings_coalescing_humidity_label">Humidity Δ (%)</string>
     <string name="settings_stale_window">Stale window</string>
     <string name="settings_stale_window_help">If no advertisement arrives in this window, the current interval freezes and chart gaps show as gaps (not stale held values).</string>
     <string name="settings_stale_window_label">Window (minutes)</string>

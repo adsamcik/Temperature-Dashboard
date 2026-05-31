@@ -340,6 +340,8 @@ private fun SensorDetailRoute(
         alerts = alerts,
         candidateOverlays = allSensors.filter { it.id != sensorId },
         overlay = OverlayChoice(overlaySensor, overlayIntervals),
+        windowStart = now - window,
+        windowEnd = now,
         onRangeChange = { range = it },
         onOverlayChange = { overlaySensorId = it },
         onToggleAlert = { alert, enabled ->

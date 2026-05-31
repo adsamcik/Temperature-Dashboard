@@ -25,10 +25,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.AlertKind
 import com.adsamcik.temperaturedashboard.core.model.IntervalStats
@@ -62,7 +71,6 @@ import com.adsamcik.temperaturedashboard.core.ui.resources.range_1w
 import com.adsamcik.temperaturedashboard.core.ui.resources.range_1y
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import kotlin.time.Duration
 
 enum class HistoryRange(val labelRes: StringResource) {
     Hour(Res.string.range_1h),
@@ -85,6 +93,8 @@ fun SensorDetailScreen(
     alerts: List<SensorAlert>,
     candidateOverlays: List<Sensor>,
     overlay: OverlayChoice,
+    windowStart: Instant,
+    windowEnd: Instant,
     onRangeChange: (HistoryRange) -> Unit,
     onOverlayChange: (SensorId?) -> Unit,
     onToggleAlert: (SensorAlert, Boolean) -> Unit,
@@ -156,6 +166,8 @@ fun SensorDetailScreen(
                     val secondaryColor = Color(it.colorSeed.toLong() or 0xFF000000L)
                     ChartSeries(overlay.intervals, secondaryColor)
                 },
+                windowStart = windowStart,
+                windowEnd = windowEnd,
                 modifier = Modifier.fillMaxWidth().height(220.dp).padding(top = TdashSpacing.m),
             )
         }
@@ -292,66 +304,213 @@ data class ChartSeries(val intervals: List<ReadingInterval>, val color: Color)
  * series share the same auto-scaled axes so they're directly comparable.
  * Gaps between consecutive intervals where the device went silent draw as
  * breaks in the line.
+ *
+ * Axes:
+ *  - **X**: fixed to the user-selected window `[windowStart, windowEnd]` so
+ *    the chart's width represents "the last hour/day/week", not "the data
+ *    bounding box". Without this, two minutes of data in a 1H view would
+ *    stretch across the whole canvas.
+ *  - **Y**: auto-scaled to the union of all series' min/max, with at least
+ *    1 °C of vertical headroom so a flat-line interval still draws across
+ *    the middle instead of pinning to the bottom edge.
+ *
+ * Each interval draws as a true step: a horizontal segment at its temperature
+ * from `validFrom` to `validUntil`. Adjacent intervals with different temps
+ * get a vertical connector at the transition.
  */
 @Composable
 private fun TemperatureChart(
     primary: ChartSeries,
     secondary: ChartSeries?,
+    windowStart: Instant,
+    windowEnd: Instant,
     modifier: Modifier = Modifier,
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val axisLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = axisLabelColor)
+
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val gridCount = 4
-            for (i in 0..gridCount) {
-                val y = size.height * i / gridCount
-                drawLine(
-                    color = gridColor.copy(alpha = 0.3f),
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1f,
-                )
-            }
+            // Measure axis-label height up front and use it to size the gutters.
+            val sampleLabelHeight = textMeasurer.measure("0", labelStyle).size.height.toFloat()
+            val labelGutterPx = 44f
+            val bottomGutterPx = sampleLabelHeight + 8f
+            val plotLeft = labelGutterPx
+            val plotTop = 4f
+            val plotRight = size.width
+            val plotBottom = (size.height - bottomGutterPx).coerceAtLeast(plotTop + 1f)
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
 
             val allSeries = listOfNotNull(primary, secondary)
                 .filter { s -> s.intervals.any { it.temperatureC != null } }
+
+            // X axis uses the user-selected window, not the data bbox.
+            val tMin = windowStart.toEpochMilliseconds()
+            val tMax = windowEnd.toEpochMilliseconds()
+            val tRange = (tMax - tMin).coerceAtLeast(1L).toDouble()
+
+            // Y axis: union of all series' temperatures, with vertical headroom.
+            val tempValues = allSeries.flatMap { it.intervals.mapNotNull { i -> i.temperatureC } }
+            val (valMin, valMax) = if (tempValues.isEmpty()) {
+                0.0 to 1.0
+            } else {
+                val rawMin = tempValues.min()
+                val rawMax = tempValues.max()
+                val span = rawMax - rawMin
+                val pad = if (span < 1.0) (1.0 - span) / 2.0 else span * 0.05
+                (rawMin - pad) to (rawMax + pad)
+            }
+            val valRange = (valMax - valMin).coerceAtLeast(0.01)
+
+            fun xAt(millis: Long): Float {
+                val clamped = millis.coerceIn(tMin, tMax)
+                return (plotLeft + (clamped - tMin).toDouble() / tRange * plotWidth).toFloat()
+            }
+
+            fun yAt(value: Double): Float =
+                (plotBottom - (value - valMin) / valRange * plotHeight).toFloat()
+
+            // Horizontal grid lines at min / mid / max.
+            val gridLevels = listOf(valMax, (valMax + valMin) / 2.0, valMin)
+            for (level in gridLevels) {
+                val y = yAt(level)
+                drawLine(
+                    color = gridColor.copy(alpha = 0.35f),
+                    start = Offset(plotLeft, y),
+                    end = Offset(plotRight, y),
+                    strokeWidth = 1f,
+                )
+                val labelText = formatTemperature(level) + "°"
+                val measured = textMeasurer.measure(labelText, labelStyle)
+                drawText(
+                    textMeasurer = textMeasurer,
+                    text = labelText,
+                    style = labelStyle,
+                    topLeft = Offset(0f, (y - measured.size.height / 2f).coerceAtLeast(0f)),
+                )
+            }
+
+            // Vertical axis line at plot left.
+            drawLine(
+                color = gridColor.copy(alpha = 0.5f),
+                start = Offset(plotLeft, plotTop),
+                end = Offset(plotLeft, plotBottom),
+                strokeWidth = 1f,
+            )
+
+            // X-axis labels: now and the window start.
+            val tz = TimeZone.currentSystemDefault()
+            val startLabel = formatAxisTime(windowStart, windowEnd - windowStart, tz)
+            val endLabel = formatAxisTime(windowEnd, windowEnd - windowStart, tz)
+            val startMeasured = textMeasurer.measure(startLabel, labelStyle)
+            drawText(
+                textMeasurer = textMeasurer,
+                text = startLabel,
+                style = labelStyle,
+                topLeft = Offset(plotLeft, plotBottom + 2f),
+            )
+            val endMeasured = textMeasurer.measure(endLabel, labelStyle)
+            drawText(
+                textMeasurer = textMeasurer,
+                text = endLabel,
+                style = labelStyle,
+                topLeft = Offset(plotRight - endMeasured.size.width, plotBottom + 2f),
+            )
+
             if (allSeries.isEmpty()) return@Canvas
 
-            val tMin = allSeries.minOf { s -> s.intervals.minOf { it.validFrom.toEpochMilliseconds() } }
-            val tMax = allSeries.maxOf { s -> s.intervals.maxOf { it.validUntil.toEpochMilliseconds() } }
-            val tRange = (tMax - tMin).coerceAtLeast(1L).toDouble()
-            val valMin = allSeries.minOf { s -> s.intervals.mapNotNull { it.temperatureC }.min() }
-            val valMax = allSeries.maxOf { s -> s.intervals.mapNotNull { it.temperatureC }.max() }
-            val valRange = (valMax - valMin).takeIf { it > 0 } ?: 1.0
-
-            fun xAt(millis: Long) = ((millis - tMin).toDouble() / tRange * size.width).toFloat()
-            fun yAt(value: Double) =
-                (size.height - (value - valMin) / valRange * size.height).toFloat()
-
             for (series in allSeries) {
-                val path = Path()
-                var penDown = false
-                var prevX = 0f
-                for (interval in series.intervals.filter { it.temperatureC != null }) {
-                    val v = interval.temperatureC!!
-                    val x0 = xAt(interval.validFrom.toEpochMilliseconds())
-                    val x1 = xAt(interval.validUntil.toEpochMilliseconds())
-                    val y = yAt(v)
-                    if (penDown && x0 - prevX > size.width * 0.01f) penDown = false
-                    if (!penDown) {
-                        path.moveTo(x0, y); penDown = true
-                    } else {
-                        path.lineTo(x0, y)
-                    }
-                    path.lineTo(x1, y)
-                    prevX = x1
-                }
-                drawPath(
-                    path = path,
-                    color = series.color,
-                    style = Stroke(width = 3f, cap = StrokeCap.Round),
+                drawSteppedSeries(
+                    series = series,
+                    xAt = ::xAt,
+                    yAt = ::yAt,
+                    plotLeft = plotLeft,
+                    plotRight = plotRight,
                 )
             }
         }
+    }
+}
+
+/**
+ * Draws one series as a proper stepped line: horizontal segment per interval
+ * at its temperature, vertical connector when the temperature changes between
+ * adjacent intervals, and a gap (no connector) when the sensor went silent.
+ * Intervals fully outside the visible window are skipped; partial intervals
+ * are clipped at the window edges by the [xAt] helper's clamp.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSteppedSeries(
+    series: ChartSeries,
+    xAt: (Long) -> Float,
+    yAt: (Double) -> Float,
+    plotLeft: Float,
+    plotRight: Float,
+) {
+    val path = Path()
+    var penDown = false
+    var prevX = 0f
+    var prevY = 0f
+    val intervals = series.intervals.asSequence()
+        .filter { it.temperatureC != null }
+        .sortedBy { it.validFrom }
+        .toList()
+    if (intervals.isEmpty()) return
+
+    // Treat any horizontal gap larger than ~0.4% of plot width as a real
+    // gap in coverage; smaller gaps are just floating-point noise between
+    // adjacent intervals.
+    val gapPx = (plotRight - plotLeft) * 0.004f
+
+    for (interval in intervals) {
+        val v = interval.temperatureC!!
+        val x0 = xAt(interval.validFrom.toEpochMilliseconds())
+        val x1 = xAt(interval.validUntil.toEpochMilliseconds())
+        val y = yAt(v)
+        if (x1 < plotLeft || x0 > plotRight) continue
+
+        if (!penDown || x0 - prevX > gapPx) {
+            // Gap (or first interval): lift the pen, move to (x0, y).
+            path.moveTo(x0, y)
+        } else {
+            // Adjacent interval: draw the connector. Stepped means horizontal
+            // at the prior y until x0, then vertical at x0 to the new y.
+            path.lineTo(x0, prevY)
+            if (y != prevY) path.lineTo(x0, y)
+        }
+        path.lineTo(x1, y)
+        penDown = true
+        prevX = x1
+        prevY = y
+    }
+
+    drawPath(
+        path = path,
+        color = series.color,
+        style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+    )
+}
+
+/**
+ * Picks a sensible label format for the X axis based on the window length:
+ *  - ≤ 12 h → HH:mm
+ *  - ≤ 7 days → "Mon dd HH:mm"
+ *  - longer → "Mon dd"
+ *
+ * For the longer windows we include the date so the two endpoints don't
+ * collapse to the same value (e.g. "22:30" left and "22:30" right when the
+ * window is exactly 24h).
+ */
+private fun formatAxisTime(instant: Instant, windowSpan: Duration, tz: TimeZone): String {
+    val ldt = instant.toLocalDateTime(tz)
+    val twoDigit: (Int) -> String = { if (it < 10) "0$it" else it.toString() }
+    val hhmm = "${twoDigit(ldt.hour)}:${twoDigit(ldt.minute)}"
+    val monShort = ldt.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+    return when {
+        windowSpan <= 12.hours -> hhmm
+        windowSpan <= 7.days -> "$monShort ${twoDigit(ldt.dayOfMonth)} $hhmm"
+        else -> "$monShort ${twoDigit(ldt.dayOfMonth)}"
     }
 }

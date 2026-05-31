@@ -59,7 +59,7 @@
     <string name="detail_stat_avg">Prům</string>
     <string name="detail_stat_max">Max</string>
     <string name="detail_stat_unknown">—</string>
-    <string name="detail_coverage">Pokrytí: %1$d%%</string>
+    <string name="detail_coverage">Pokrytí: %1$d%</string>
     <string name="detail_export_csv">Exportovat CSV</string>
     <string name="detail_export_json">Exportovat JSON</string>
     <string name="detail_sync_history_default">Synchronizovat historii ze zařízení (BETA)</string>
@@ -84,9 +84,9 @@
     <string name="alert_kind_battery_below">Baterie pod</string>
     <string name="alert_label_temp_above">Teplota &gt; %1$s °C</string>
     <string name="alert_label_temp_below">Teplota &lt; %1$s °C</string>
-    <string name="alert_label_humidity_above">Vlhkost &gt; %1$d %%</string>
-    <string name="alert_label_humidity_below">Vlhkost &lt; %1$d %%</string>
-    <string name="alert_label_battery_below">Baterie &lt; %1$d %%</string>
+    <string name="alert_label_humidity_above">Vlhkost &gt; %1$d %</string>
+    <string name="alert_label_humidity_below">Vlhkost &lt; %1$d %</string>
+    <string name="alert_label_battery_below">Baterie &lt; %1$d %</string>
 
     <string name="threshold_card_title">Čas u prahu</string>
     <string name="threshold_mode_above">Nad</string>
@@ -110,7 +110,7 @@
     <string name="settings_coalescing_thresholds">Prahové hodnoty slučování</string>
     <string name="settings_coalescing_help">Menší prahy zachytí více detailu, ale zapíší více řádků. Výchozí hodnoty fungují dobře pro ThermoPro, SwitchBot a Govee.</string>
     <string name="settings_coalescing_temp_label">Teplota Δ (°C)</string>
-    <string name="settings_coalescing_humidity_label">Vlhkost Δ (%%)</string>
+    <string name="settings_coalescing_humidity_label">Vlhkost Δ (%)</string>
     <string name="settings_stale_window">Okno zastarání</string>
     <string name="settings_stale_window_help">Pokud v tomto okně nepřijde žádné vysílání, aktuální interval se uzavře a v grafu se zobrazí mezera (ne staré držené hodnoty).</string>
     <string name="settings_stale_window_label">Okno (minuty)</string>
