@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylised thermometer glyph centred in the 72dp safe area. -->
+    <group android:translateX="36" android:translateY="18">
+        <!-- Bulb -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M18,52 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+        <!-- Stem -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M14,8 a4,4 0 0,1 8,0 v36 h-8 z" />
+        <!-- Liquid inside the stem (slightly translucent so the M3 monochrome treatment plays nice) -->
+        <path
+            android:fillColor="#FFFFDAD4"
+            android:pathData="M16,22 h4 v22 h-4 z" />
+    </group>
+</vector>

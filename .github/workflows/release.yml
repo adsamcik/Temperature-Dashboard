@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # -----------------------------------------------------------------------
+  # 1. Build the btleplug-jni native library per OS.
+  #    Output is stashed as an artifact and pulled in by the desktop builds.
+  # -----------------------------------------------------------------------
+  jni:
+    name: btleplug-jni · ${{ matrix.target.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { os: ubuntu-latest,  rust-target: x86_64-unknown-linux-gnu,    libname: libbtleplug_jni.so,    out: linux-x64 }
+          - { os: windows-latest, rust-target: x86_64-pc-windows-msvc,      libname: btleplug_jni.dll,      out: windows-x64 }
+          - { os: macos-latest,   rust-target: aarch64-apple-darwin,        libname: libbtleplug_jni.dylib, out: macos-arm64 }
+          - { os: macos-13,       rust-target: x86_64-apple-darwin,         libname: libbtleplug_jni.dylib, out: macos-x64 }
+    runs-on: ${{ matrix.target.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target.rust-target }}
+
+      - name: Install BlueZ headers (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Build native lib
+        working-directory: ble/btleplug-jni
+        run: cargo build --release --target ${{ matrix.target.rust-target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: btleplug-jni-${{ matrix.target.out }}
+          path: ble/btleplug-jni/target/${{ matrix.target.rust-target }}/release/${{ matrix.target.libname }}
+          retention-days: 7
+
+  # -----------------------------------------------------------------------
+  # 2. Android: build a signed (or unsigned) release APK + AAB.
+  # -----------------------------------------------------------------------
+  android:
+    name: Android · release artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew :app:android:assembleRelease :app:android:bundleRelease --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            app/android/build/outputs/apk/release/*.apk
+            app/android/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+  # -----------------------------------------------------------------------
+  # 3. Desktop: per-OS native installers, each bundling the matching JNI lib.
+  # -----------------------------------------------------------------------
+  desktop:
+    name: Desktop · ${{ matrix.cfg.os }}
+    needs: jni
+    strategy:
+      fail-fast: false
+      matrix:
+        cfg:
+          - { os: ubuntu-latest,  jni: linux-x64,   format: 'deb',           outDir: app/desktop/build/compose/binaries/main/deb }
+          - { os: windows-latest, jni: windows-x64, format: 'msi',           outDir: app/desktop/build/compose/binaries/main/msi }
+          - { os: macos-latest,   jni: macos-arm64, format: 'dmg',           outDir: app/desktop/build/compose/binaries/main/dmg }
+          - { os: macos-13,       jni: macos-x64,   format: 'dmg',           outDir: app/desktop/build/compose/binaries/main/dmg }
+    runs-on: ${{ matrix.cfg.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Pull JNI lib for this OS
+        uses: actions/download-artifact@v4
+        with:
+          name: btleplug-jni-${{ matrix.cfg.jni }}
+          path: app/desktop/src/main/resources/native/
+
+      - name: Package native distribution
+        run: ./gradlew :app:desktop:packageDistributionForCurrentOs --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.cfg.os }}
+          path: ${{ matrix.cfg.outDir }}/*
+          retention-days: 30
+
+  # -----------------------------------------------------------------------
+  # 4. Stitch everything into a GitHub Release on tag pushes.
+  # -----------------------------------------------------------------------
+  publish:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.apk
+            artifacts/**/*.aab
+            artifacts/**/*.deb
+            artifacts/**/*.msi
+            artifacts/**/*.dmg
