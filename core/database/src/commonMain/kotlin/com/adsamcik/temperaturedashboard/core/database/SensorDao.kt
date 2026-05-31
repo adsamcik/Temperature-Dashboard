@@ -18,7 +18,12 @@ interface SensorDao {
     @Query("SELECT * FROM sensor WHERE id = :id")
     suspend fun findById(id: Long): SensorEntity?
 
-    @Query("SELECT * FROM sensor ORDER BY last_seen_at DESC, display_name ASC")
+    /**
+     * Insertion order (oldest first) — deliberately stable so cards never
+     * swap positions when a different sensor's advertisement lands. Use a
+     * dedicated `display_order` column in the future if drag-reorder ships.
+     */
+    @Query("SELECT * FROM sensor ORDER BY id ASC")
     fun observeAll(): Flow<List<SensorEntity>>
 
     @Query("SELECT * FROM sensor WHERE id = :id")
