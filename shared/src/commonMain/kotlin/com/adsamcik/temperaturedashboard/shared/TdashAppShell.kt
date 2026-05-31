@@ -33,7 +33,7 @@ import com.adsamcik.temperaturedashboard.shared.navigation.ShellDestination
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TdashAppShell(
-    shellScreens: Map<ShellDestination, @Composable () -> Unit>,
+    shellScreens: Map<ShellDestination, @Composable (onOpenSensorDetail: (SensorId) -> Unit) -> Unit>,
     sensorDetailScreen: @Composable (SensorId) -> Unit,
     useCompactLayout: Boolean = false,
 ) {
@@ -51,6 +51,8 @@ fun TdashAppShell(
             if (navStack.pop()) current = navStack.current
         }
 
+        val openDetail: (SensorId) -> Unit = { id -> navigate(NavTarget.SensorDetail(id)) }
+
         when (val target = current) {
             is NavTarget.Shell -> ShellScaffold(
                 current = target.destination,
@@ -58,7 +60,7 @@ fun TdashAppShell(
                 useCompactLayout = useCompactLayout,
                 content = {
                     val screen = shellScreens[target.destination]
-                    if (screen != null) screen() else Text(
+                    if (screen != null) screen(openDetail) else Text(
                         text = "${target.destination.label} screen not provided",
                         style = MaterialTheme.typography.bodyLarge,
                     )

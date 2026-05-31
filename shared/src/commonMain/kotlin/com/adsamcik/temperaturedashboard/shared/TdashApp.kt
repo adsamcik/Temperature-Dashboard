@@ -90,16 +90,16 @@ fun TdashApp(useCompactLayout: Boolean) {
     val scope = rememberCoroutineScope()
     val scanState by coordinator.state.collectAsState()
 
-    val shellScreens: Map<ShellDestination, @Composable () -> Unit> = mapOf(
-        ShellDestination.Dashboard to {
+    val shellScreens: Map<ShellDestination, @Composable (onOpenSensorDetail: (SensorId) -> Unit) -> Unit> = mapOf(
+        ShellDestination.Dashboard to { openDetail ->
             DashboardRoute(
                 sensors = sensors,
                 unit = unit,
                 readingRepository = readingRepository,
-                onSensorClick = { /* navigated via the shell */ },
+                onSensorClick = openDetail,
             )
         },
-        ShellDestination.Scan to {
+        ShellDestination.Scan to { _ ->
             ScanScreen(
                 discoveries = discoveryList.values.toList(),
                 isScanning = scanState == com.adsamcik.temperaturedashboard.ble.api.ScanState.Scanning,
@@ -119,7 +119,7 @@ fun TdashApp(useCompactLayout: Boolean) {
                 onStop = { scope.launch { coordinator.stop() } },
             )
         },
-        ShellDestination.Settings to {
+        ShellDestination.Settings to { _ ->
             SettingsScreen(
                 unit = unit,
                 policy = policy,
