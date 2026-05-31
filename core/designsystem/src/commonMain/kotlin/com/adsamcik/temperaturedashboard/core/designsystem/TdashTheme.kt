@@ -69,15 +69,10 @@ private val DarkColors: ColorScheme = darkColorScheme(
 /**
  * Material 3 theme for the Temperature Dashboard.
  *
- * `dynamicColor = true` (Android 12+) sources the colour scheme from the
- * user's wallpaper; everywhere else we fall back to the warm-coral static
- * scheme above. The platform-specific [dynamicColorSchemeOrNull] expect/actual
- * does the platform check.
- *
- * On Android we additionally wrap content in [ExpressiveSurface] which
- * applies `MaterialExpressiveTheme` with `MotionScheme.expressive()` —
- * bouncier springs, more energetic transitions, the M3-Expressive feel.
- * Desktop falls back to stock M3.
+ * Both [darkTheme] and [dynamicColor] are passed in by the app shell from
+ * the user's preferences (settings repository) so they can be overridden at
+ * runtime. On Android, dynamic colour pulls from Material You wallpaper;
+ * on Desktop we always fall back to the static warm-coral scheme regardless.
  */
 @Composable
 fun TdashTheme(

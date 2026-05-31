@@ -36,41 +36,43 @@ fun TdashAppShell(
     shellScreens: Map<ShellDestination, @Composable (onOpenSensorDetail: (SensorId) -> Unit) -> Unit>,
     sensorDetailScreen: @Composable (SensorId) -> Unit,
     useCompactLayout: Boolean = false,
+    snackbarState: androidx.compose.material3.SnackbarHostState =
+        remember { androidx.compose.material3.SnackbarHostState() },
 ) {
-    TdashTheme {
-        val navStack = remember { NavStack() }
-        var current by remember { mutableStateOf<NavTarget>(navStack.current) }
+    val navStack = remember { NavStack() }
+    var current by remember { mutableStateOf<NavTarget>(navStack.current) }
 
-        fun navigate(target: NavTarget) {
-            navStack.push(target); current = navStack.current
-        }
-        fun reset(destination: ShellDestination) {
-            navStack.resetTo(NavTarget.Shell(destination)); current = navStack.current
-        }
-        fun back() {
-            if (navStack.pop()) current = navStack.current
-        }
+    fun navigate(target: NavTarget) {
+        navStack.push(target); current = navStack.current
+    }
+    fun reset(destination: ShellDestination) {
+        navStack.resetTo(NavTarget.Shell(destination)); current = navStack.current
+    }
+    fun back() {
+        if (navStack.pop()) current = navStack.current
+    }
 
-        val openDetail: (SensorId) -> Unit = { id -> navigate(NavTarget.SensorDetail(id)) }
+    val openDetail: (SensorId) -> Unit = { id -> navigate(NavTarget.SensorDetail(id)) }
 
-        when (val target = current) {
-            is NavTarget.Shell -> ShellScaffold(
-                current = target.destination,
-                onSelect = ::reset,
-                useCompactLayout = useCompactLayout,
-                content = {
-                    val screen = shellScreens[target.destination]
-                    if (screen != null) screen(openDetail) else Text(
-                        text = "${target.destination.label} screen not provided",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-            )
-            is NavTarget.SensorDetail -> DetailScaffold(
-                onBack = ::back,
-                content = { sensorDetailScreen(target.sensorId) },
-            )
-        }
+    when (val target = current) {
+        is NavTarget.Shell -> ShellScaffold(
+            current = target.destination,
+            onSelect = ::reset,
+            useCompactLayout = useCompactLayout,
+            snackbarState = snackbarState,
+            content = {
+                val screen = shellScreens[target.destination]
+                if (screen != null) screen(openDetail) else Text(
+                    text = "${target.destination.label} screen not provided",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            },
+        )
+        is NavTarget.SensorDetail -> DetailScaffold(
+            onBack = ::back,
+            snackbarState = snackbarState,
+            content = { sensorDetailScreen(target.sensorId) },
+        )
     }
 }
 
@@ -80,11 +82,13 @@ private fun ShellScaffold(
     current: ShellDestination,
     onSelect: (ShellDestination) -> Unit,
     useCompactLayout: Boolean,
+    snackbarState: androidx.compose.material3.SnackbarHostState,
     content: @Composable () -> Unit,
 ) {
     if (useCompactLayout) {
         Scaffold(
             topBar = { TopAppBar(title = { Text(current.label) }) },
+            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarState) },
             bottomBar = {
                 NavigationBar {
                     ShellDestination.entries.forEach { dest ->
@@ -116,6 +120,7 @@ private fun ShellScaffold(
                 Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
                         topBar = { TopAppBar(title = { Text(current.label) }) },
+                        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarState) },
                     ) { padding ->
                         Box(modifier = Modifier.fillMaxSize().padding(padding)) { content() }
                     }
@@ -129,6 +134,7 @@ private fun ShellScaffold(
 @Composable
 private fun DetailScaffold(
     onBack: () -> Unit,
+    snackbarState: androidx.compose.material3.SnackbarHostState,
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -142,6 +148,7 @@ private fun DetailScaffold(
                 },
             )
         },
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarState) },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) { content() }
     }

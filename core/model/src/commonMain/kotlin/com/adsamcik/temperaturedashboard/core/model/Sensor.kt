@@ -18,6 +18,8 @@ data class Sensor(
     val modelHint: String?,
     val createdAt: Instant,
     val lastSeenAt: Instant?,
-    /** Stable hash seed driving the chart line / accent colour for this sensor. */
+    /** ARGB-packed accent colour for this sensor; user-overridable. */
     val colorSeed: Int,
+    /** True when the user has hidden this sensor from the dashboard (history kept). */
+    val hidden: Boolean = false,
 )

@@ -24,6 +24,10 @@ class SensorRepository(private val dao: SensorDao) {
 
     fun observeAll(): Flow<List<Sensor>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
 
+    /** Flow includes hidden sensors — used by Settings → Hidden sensors panel. */
+    fun observeAllIncludingHidden(): Flow<List<Sensor>> =
+        dao.observeAllIncludingHidden().map { rows -> rows.map { it.toDomain() } }
+
     fun observe(id: SensorId): Flow<Sensor?> = dao.observeById(id.raw).map { it?.toDomain() }
 
     suspend fun findByAddress(address: SensorAddress): Sensor? =
@@ -63,6 +67,14 @@ class SensorRepository(private val dao: SensorDao) {
     suspend fun rename(id: SensorId, name: String) {
         require(name.isNotBlank()) { "Sensor name must not be blank" }
         dao.rename(id.raw, name.trim())
+    }
+
+    suspend fun setHidden(id: SensorId, hidden: Boolean) {
+        dao.setHidden(id.raw, hidden)
+    }
+
+    suspend fun setColor(id: SensorId, colorArgb: Int) {
+        dao.setColor(id.raw, colorArgb)
     }
 
     suspend fun update(sensor: Sensor) {

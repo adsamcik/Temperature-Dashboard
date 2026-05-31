@@ -29,6 +29,7 @@ import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.AlertKind
 import com.adsamcik.temperaturedashboard.core.model.SensorAlert
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * In-detail-screen panel for managing a sensor's threshold alerts.
@@ -40,7 +41,7 @@ import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
 fun AlertsPanel(
     alerts: List<SensorAlert>,
     onToggle: (SensorAlert, Boolean) -> Unit,
-    onAdd: (AlertKind) -> Unit,
+    onAdd: (AlertKind, kotlin.time.Duration) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -62,8 +63,8 @@ fun AlertsPanel(
                 TextButton(onClick = { dialogOpen = true }) { Text("+ Add") }
                 if (dialogOpen) {
                     AddAlertDialog(
-                        onConfirm = {
-                            onAdd(it)
+                        onConfirm = { kind, cooldown ->
+                            onAdd(kind, cooldown)
                             dialogOpen = false
                         },
                         onDismiss = { dialogOpen = false },
@@ -114,7 +115,7 @@ private fun AlertRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddAlertDialog(
-    onConfirm: (AlertKind) -> Unit,
+    onConfirm: (AlertKind, kotlin.time.Duration) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var kindIndex by remember { mutableStateOf(0) }
@@ -129,6 +130,7 @@ private fun AddAlertDialog(
         0 -> 25.0; 1 -> 5.0; 2 -> 70.0; 3 -> 30.0; 4 -> 20.0; else -> 0.0
     }
     var threshold by remember(kindIndex) { mutableStateOf(defaultThreshold) }
+    var cooldownMinutes by remember { mutableStateOf(30f) }
     val sliderRange = when (kindIndex) {
         in 0..1 -> -20f..50f
         in 2..3 -> 0f..100f
@@ -139,9 +141,14 @@ private fun AddAlertDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onConfirm(kindOptions[kindIndex].second(threshold)) }) {
-                Text("Add")
-            }
+            TextButton(
+                onClick = {
+                    onConfirm(
+                        kindOptions[kindIndex].second(threshold),
+                        cooldownMinutes.toLong().minutes,
+                    )
+                },
+            ) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         title = { Text("New alert") },
@@ -167,6 +174,22 @@ private fun AddAlertDialog(
                     value = threshold.toFloat(),
                     onValueChange = { threshold = it.toDouble() },
                     valueRange = sliderRange,
+                )
+                Text(
+                    text = "Cooldown: ${cooldownMinutes.toInt()} min",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    text = "Once fired, this alert can't fire again for this long " +
+                        "even if the value stays past the threshold.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = cooldownMinutes,
+                    onValueChange = { cooldownMinutes = it },
+                    valueRange = 5f..240f,
+                    steps = 46,
                 )
             }
         },

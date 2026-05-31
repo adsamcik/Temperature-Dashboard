@@ -19,6 +19,7 @@ fun SensorEntity.toDomain(): Sensor = Sensor(
     createdAt = Instant.fromEpochMilliseconds(createdAt),
     lastSeenAt = lastSeenAt?.let(Instant::fromEpochMilliseconds),
     colorSeed = colorSeed,
+    hidden = hidden,
 )
 
 fun Sensor.toEntity(): SensorEntity = SensorEntity(
@@ -30,6 +31,7 @@ fun Sensor.toEntity(): SensorEntity = SensorEntity(
     createdAt = createdAt.toEpochMilliseconds(),
     lastSeenAt = lastSeenAt?.toEpochMilliseconds(),
     colorSeed = colorSeed,
+    hidden = hidden,
 )
 
 fun ReadingIntervalEntity.toDomain(): ReadingInterval = ReadingInterval(

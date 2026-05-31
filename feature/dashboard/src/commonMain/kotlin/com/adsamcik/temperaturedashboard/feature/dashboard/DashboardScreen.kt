@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.Sensor
@@ -18,24 +19,20 @@ import com.adsamcik.temperaturedashboard.core.ui.component.SensorCard
 
 /**
  * Dashboard — responsive grid of [SensorCard]s, one per added sensor.
- *
- * `:feature:dashboard` is deliberately side-effect-free at the API boundary:
- * it consumes pre-built [DashboardSensorRow]s the shared layer assembles
- * from SensorRepository + ReadingRepository + SettingsRepository. This
- * keeps the feature module easy to preview and test in isolation.
  */
 @Composable
 fun DashboardScreen(
     rows: List<DashboardSensorRow>,
     unit: TemperatureUnit,
     onSensorClick: (SensorId) -> Unit,
+    onSensorLongClick: (SensorId) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (rows.isEmpty()) {
         EmptyState(
             title = "No sensors yet",
-            message = "Open the Add sensor tab to discover nearby ThermoPro, BTHome v2, " +
-                "or ESS-standard thermometers.",
+            message = "Open the Add sensor tab to discover nearby ThermoPro, SwitchBot, " +
+                "Govee, BTHome v2, or ESS-standard thermometers.",
             modifier = modifier,
         )
         return
@@ -58,6 +55,8 @@ fun DashboardScreen(
                 sparklineValues = row.sparklineValues,
                 unit = unit,
                 onClick = { onSensorClick(row.sensor.id) },
+                onLongClick = { onSensorLongClick(row.sensor.id) },
+                accentColor = Color(row.sensor.colorSeed.toLong() or 0xFF000000L),
             )
         }
     }
@@ -72,3 +71,4 @@ data class DashboardSensorRow(
     val rssi: Int?,
     val sparklineValues: List<Double>,
 )
+

@@ -30,6 +30,16 @@ data class SensorEntity(
     /** Epoch millis; null until the first successful reading lands. */
     @ColumnInfo(name = "last_seen_at")
     val lastSeenAt: Long? = null,
+    /**
+     * ARGB-packed accent colour for this sensor (used for chart line + card
+     * tint). Random at registration; user can override from the detail screen.
+     */
     @ColumnInfo(name = "color_seed")
     val colorSeed: Int,
+    /**
+     * User has hidden this sensor from the dashboard. History is kept; the
+     * sensor still appears in scan results and can be re-shown.
+     */
+    @ColumnInfo(name = "hidden", defaultValue = "0")
+    val hidden: Boolean = false,
 )

@@ -28,4 +28,10 @@ val androidPlatformModule: Module = module {
     single<BleScanner> { AndroidBleScanner(androidContext()) }
     single<BluetoothAdapterMonitor> { AndroidBluetoothAdapterMonitor(androidContext()) }
     single<Notifier> { AndroidNotifier(androidContext()) }
+    single<com.adsamcik.temperaturedashboard.shared.export.HistorySharer> {
+        com.adsamcik.temperaturedashboard.shared.export.AndroidHistorySharer(androidContext())
+    }
+    single<com.adsamcik.temperaturedashboard.shared.system.AutostartManager> {
+        com.adsamcik.temperaturedashboard.shared.system.AndroidAutostartManager()
+    }
 }

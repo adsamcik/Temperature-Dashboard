@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,15 +28,18 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
+import com.adsamcik.temperaturedashboard.core.model.AlertKind
 import com.adsamcik.temperaturedashboard.core.model.IntervalStats
 import com.adsamcik.temperaturedashboard.core.model.ReadingInterval
 import com.adsamcik.temperaturedashboard.core.model.Sensor
+import com.adsamcik.temperaturedashboard.core.model.SensorAlert
+import com.adsamcik.temperaturedashboard.core.model.SensorId
 import com.adsamcik.temperaturedashboard.core.model.TemperatureUnit
 import com.adsamcik.temperaturedashboard.core.ui.component.EmptyState
 import com.adsamcik.temperaturedashboard.core.ui.component.TemperatureBigDisplay
 import com.adsamcik.temperaturedashboard.core.ui.component.formatTemperature
+import kotlin.time.Duration
 
-/** Time-range presets the detail screen exposes. */
 enum class HistoryRange(val label: String) {
     Hour("1H"),
     Day("1D"),
@@ -43,6 +48,9 @@ enum class HistoryRange(val label: String) {
     Year("1Y"),
 }
 
+/** Compare-with selection: the other sensor whose line should overlay the chart, or null for none. */
+data class OverlayChoice(val sensor: Sensor?, val intervals: List<ReadingInterval>)
+
 @Composable
 fun SensorDetailScreen(
     sensor: Sensor?,
@@ -50,11 +58,16 @@ fun SensorDetailScreen(
     stats: IntervalStats,
     range: HistoryRange,
     unit: TemperatureUnit,
-    alerts: List<com.adsamcik.temperaturedashboard.core.model.SensorAlert>,
+    alerts: List<SensorAlert>,
+    candidateOverlays: List<Sensor>,
+    overlay: OverlayChoice,
     onRangeChange: (HistoryRange) -> Unit,
-    onToggleAlert: (com.adsamcik.temperaturedashboard.core.model.SensorAlert, Boolean) -> Unit,
-    onAddAlert: (com.adsamcik.temperaturedashboard.core.model.AlertKind) -> Unit,
+    onOverlayChange: (SensorId?) -> Unit,
+    onToggleAlert: (SensorAlert, Boolean) -> Unit,
+    onAddAlert: (AlertKind, Duration) -> Unit,
     onDeleteAlert: (Long) -> Unit,
+    onExportCsv: () -> Unit,
+    onExportJson: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (sensor == null) {
@@ -65,6 +78,8 @@ fun SensorDetailScreen(
         )
         return
     }
+    val accent = Color(sensor.colorSeed.toLong() or 0xFF000000L)
+
     Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TdashSpacing.m)) {
         Text(text = sensor.displayName, style = MaterialTheme.typography.headlineSmall)
         Text(
@@ -81,10 +96,7 @@ fun SensorDetailScreen(
             TemperatureBigDisplay(valueC = stats.currentTemperatureC, unit = unit)
             stats.currentHumidityPct?.let { h ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "${h.toInt()} %",
-                        style = MaterialTheme.typography.displaySmall,
-                    )
+                    Text(text = "${h.toInt()} %", style = MaterialTheme.typography.displaySmall)
                     Text(
                         text = "Humidity",
                         style = MaterialTheme.typography.bodySmall,
@@ -100,15 +112,32 @@ fun SensorDetailScreen(
             modifier = Modifier.padding(top = TdashSpacing.l),
         )
 
-        TemperatureChart(
-            intervals = intervals,
-            unit = unit,
-            modifier = Modifier.fillMaxWidth().height(220.dp).padding(top = TdashSpacing.m),
-        )
+        if (candidateOverlays.isNotEmpty()) {
+            OverlayPicker(
+                candidates = candidateOverlays,
+                current = overlay.sensor,
+                onSelect = onOverlayChange,
+                modifier = Modifier.padding(top = TdashSpacing.s),
+            )
+        }
 
-        StatsPanel(
-            stats = stats,
-            unit = unit,
+        if (range == HistoryRange.Year) {
+            YearHeatmap(intervals = intervals, modifier = Modifier.padding(top = TdashSpacing.m))
+        } else {
+            TemperatureChart(
+                primary = ChartSeries(intervals, accent),
+                secondary = overlay.sensor?.let {
+                    val secondaryColor = Color(it.colorSeed.toLong() or 0xFF000000L)
+                    ChartSeries(overlay.intervals, secondaryColor)
+                },
+                modifier = Modifier.fillMaxWidth().height(220.dp).padding(top = TdashSpacing.m),
+            )
+        }
+
+        StatsPanel(stats = stats, modifier = Modifier.padding(top = TdashSpacing.l))
+
+        ThresholdDurationCard(
+            intervals = intervals,
             modifier = Modifier.padding(top = TdashSpacing.l),
         )
 
@@ -119,6 +148,14 @@ fun SensorDetailScreen(
             onDelete = onDeleteAlert,
             modifier = Modifier.padding(top = TdashSpacing.l),
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = TdashSpacing.l),
+            horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s),
+        ) {
+            OutlinedButton(onClick = onExportCsv, modifier = Modifier.weight(1f)) { Text("Export CSV") }
+            OutlinedButton(onClick = onExportJson, modifier = Modifier.weight(1f)) { Text("Export JSON") }
+        }
     }
 }
 
@@ -128,10 +165,7 @@ private fun RangeChips(
     onRangeChange: (HistoryRange) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s),
-    ) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(TdashSpacing.s)) {
         HistoryRange.entries.forEach { r ->
             FilterChip(
                 selected = r == range,
@@ -143,7 +177,44 @@ private fun RangeChips(
 }
 
 @Composable
-private fun StatsPanel(stats: IntervalStats, unit: TemperatureUnit, modifier: Modifier = Modifier) {
+private fun OverlayPicker(
+    candidates: List<Sensor>,
+    current: Sensor?,
+    onSelect: (SensorId?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text("Compare to", style = MaterialTheme.typography.labelMedium)
+        androidx.compose.foundation.layout.FlowRow(
+            modifier = Modifier.padding(top = TdashSpacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(TdashSpacing.xs),
+        ) {
+            AssistChip(
+                onClick = { onSelect(null) },
+                label = { Text("None") },
+                colors = if (current == null) {
+                    AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    )
+                } else AssistChipDefaults.assistChipColors(),
+            )
+            candidates.forEach { s ->
+                AssistChip(
+                    onClick = { onSelect(s.id) },
+                    label = { Text(s.displayName) },
+                    colors = if (current?.id == s.id) {
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        )
+                    } else AssistChipDefaults.assistChipColors(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsPanel(stats: IntervalStats, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -173,22 +244,24 @@ private fun androidx.compose.foundation.layout.RowScope.StatColumn(label: String
     }
 }
 
+/** Renderable series for [TemperatureChart] — colour plus intervals. */
+data class ChartSeries(val intervals: List<ReadingInterval>, val color: Color)
+
 /**
- * Stepped-line temperature chart drawn directly on a Canvas — one segment per
- * interval. Honest gaps where the sensor went silent (i.e. consecutive
- * intervals separated by a gap > stale window) are drawn as visual gaps.
+ * Stepped-line temperature chart with optional secondary overlay. Both
+ * series share the same auto-scaled axes so they're directly comparable.
+ * Gaps between consecutive intervals where the device went silent draw as
+ * breaks in the line.
  */
 @Composable
 private fun TemperatureChart(
-    intervals: List<ReadingInterval>,
-    unit: TemperatureUnit,
+    primary: ChartSeries,
+    secondary: ChartSeries?,
     modifier: Modifier = Modifier,
 ) {
-    val color = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // Background grid
             val gridCount = 4
             for (i in 0..gridCount) {
                 val y = size.height * i / gridCount
@@ -200,47 +273,45 @@ private fun TemperatureChart(
                 )
             }
 
-            val series = intervals.filter { it.temperatureC != null }
-            if (series.isEmpty()) return@Canvas
+            val allSeries = listOfNotNull(primary, secondary)
+                .filter { s -> s.intervals.any { it.temperatureC != null } }
+            if (allSeries.isEmpty()) return@Canvas
 
-            val tMin = series.minOf { it.validFrom.toEpochMilliseconds() }
-            val tMax = series.maxOf { it.validUntil.toEpochMilliseconds() }
+            val tMin = allSeries.minOf { s -> s.intervals.minOf { it.validFrom.toEpochMilliseconds() } }
+            val tMax = allSeries.maxOf { s -> s.intervals.maxOf { it.validUntil.toEpochMilliseconds() } }
             val tRange = (tMax - tMin).coerceAtLeast(1L).toDouble()
-            val valMin = series.minOf { it.temperatureC!! }
-            val valMax = series.maxOf { it.temperatureC!! }
+            val valMin = allSeries.minOf { s -> s.intervals.mapNotNull { it.temperatureC }.min() }
+            val valMax = allSeries.maxOf { s -> s.intervals.mapNotNull { it.temperatureC }.max() }
             val valRange = (valMax - valMin).takeIf { it > 0 } ?: 1.0
 
-            fun xAt(millis: Long): Float =
-                ((millis - tMin).toDouble() / tRange * size.width).toFloat()
-            fun yAt(value: Double): Float =
+            fun xAt(millis: Long) = ((millis - tMin).toDouble() / tRange * size.width).toFloat()
+            fun yAt(value: Double) =
                 (size.height - (value - valMin) / valRange * size.height).toFloat()
 
-            val path = Path()
-            var penDown = false
-            var prevX = 0f
-            var prevY = 0f
-            for (interval in series) {
-                val v = interval.temperatureC!!
-                val x0 = xAt(interval.validFrom.toEpochMilliseconds())
-                val x1 = xAt(interval.validUntil.toEpochMilliseconds())
-                val y = yAt(v)
-                if (penDown && x0 - prevX > size.width * 0.01f) {
-                    penDown = false
+            for (series in allSeries) {
+                val path = Path()
+                var penDown = false
+                var prevX = 0f
+                for (interval in series.intervals.filter { it.temperatureC != null }) {
+                    val v = interval.temperatureC!!
+                    val x0 = xAt(interval.validFrom.toEpochMilliseconds())
+                    val x1 = xAt(interval.validUntil.toEpochMilliseconds())
+                    val y = yAt(v)
+                    if (penDown && x0 - prevX > size.width * 0.01f) penDown = false
+                    if (!penDown) {
+                        path.moveTo(x0, y); penDown = true
+                    } else {
+                        path.lineTo(x0, y)
+                    }
+                    path.lineTo(x1, y)
+                    prevX = x1
                 }
-                if (!penDown) {
-                    path.moveTo(x0, y)
-                    penDown = true
-                } else {
-                    path.lineTo(x0, y)
-                }
-                path.lineTo(x1, y)
-                prevX = x1; prevY = y
+                drawPath(
+                    path = path,
+                    color = series.color,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round),
+                )
             }
-            drawPath(
-                path = path,
-                color = color,
-                style = Stroke(width = 3f, cap = StrokeCap.Round),
-            )
         }
     }
 }

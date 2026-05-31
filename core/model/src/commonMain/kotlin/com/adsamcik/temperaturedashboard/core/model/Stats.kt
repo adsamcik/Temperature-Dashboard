@@ -97,5 +97,35 @@ object IntervalAggregator {
             coverageDuration = coverageMs.milliseconds,
         )
     }
+
+    /**
+     * Sum of time during which `temperatureC > thresholdC`. Intervals with
+     * null temperature don't contribute. The window's gaps (intervals not
+     * captured at all) also don't contribute — this is *measured* time
+     * above threshold, not extrapolated.
+     */
+    fun durationAbove(intervals: List<ReadingInterval>, thresholdC: Double): Duration =
+        durationWhere(intervals) { it > thresholdC }
+
+    /** Sum of time during which `temperatureC < thresholdC`. */
+    fun durationBelow(intervals: List<ReadingInterval>, thresholdC: Double): Duration =
+        durationWhere(intervals) { it < thresholdC }
+
+    /** Sum of time during which `lowC <= temperatureC <= highC` (inclusive). */
+    fun durationInRange(intervals: List<ReadingInterval>, lowC: Double, highC: Double): Duration =
+        durationWhere(intervals) { it in lowC..highC }
+
+    private inline fun durationWhere(
+        intervals: List<ReadingInterval>,
+        predicate: (Double) -> Boolean,
+    ): Duration {
+        var totalMs = 0L
+        for (interval in intervals) {
+            val t = interval.temperatureC ?: continue
+            if (!predicate(t)) continue
+            totalMs += (interval.validUntil - interval.validFrom).inWholeMilliseconds
+        }
+        return totalMs.milliseconds
+    }
 }
 

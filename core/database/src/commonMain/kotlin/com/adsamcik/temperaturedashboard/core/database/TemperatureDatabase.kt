@@ -11,10 +11,11 @@ import androidx.room.RoomDatabaseConstructor
         ReadingIntervalEntity::class,
         SensorAlertEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
     autoMigrations = [
         androidx.room.AutoMigration(from = 1, to = 2),
+        androidx.room.AutoMigration(from = 2, to = 3),
     ],
 )
 @ConstructedBy(TemperatureDatabaseConstructor::class)
