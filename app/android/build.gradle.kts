@@ -3,14 +3,38 @@ plugins {
     alias(libs.plugins.tdash.android.application.compose)
 }
 
+private val appVersionName: String = file("$rootDir/VERSION").readText().trim()
+private val appVersionCode: Int = run {
+    val (major, minor, patch) = appVersionName.split('.').map { it.toInt() }
+    major * 10_000 + minor * 100 + patch
+}
+
 android {
     namespace = "com.adsamcik.temperaturedashboard"
 
     defaultConfig {
         applicationId = "com.adsamcik.temperaturedashboard"
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // Production signing: takes keystore from env vars/secrets when present
+        // (set TDASH_RELEASE_KEYSTORE_PATH, TDASH_RELEASE_KEYSTORE_PASSWORD,
+        // TDASH_RELEASE_KEY_ALIAS, TDASH_RELEASE_KEY_PASSWORD on CI).
+        // Falls back to the debug signing config so the release APK is at
+        // least installable for sideloading from GitHub Releases. The CI
+        // notes call this out in the release body when the fallback is used.
+        create("release") {
+            val keystorePath = System.getenv("TDASH_RELEASE_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("TDASH_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TDASH_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("TDASH_RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildFeatures {
@@ -29,6 +53,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Use release signing if a keystore was provided, otherwise the
+            // debug signing config (auto-created by AGP) so the APK is still
+            // installable. CI distinguishes the two via TDASH_RELEASE_KEYSTORE_PATH.
+            signingConfig = if (System.getenv("TDASH_RELEASE_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
 

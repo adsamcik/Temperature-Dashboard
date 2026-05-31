@@ -8,6 +8,7 @@ import com.adsamcik.temperaturedashboard.decoder.api.DeviceProfile
 import com.adsamcik.temperaturedashboard.decoder.api.DeviceProfileRegistry
 import com.adsamcik.temperaturedashboard.core.model.Reading
 import com.adsamcik.temperaturedashboard.core.model.ReadingSource
+import io.github.aakira.napier.Napier
 
 /**
  * Pure-function bridge between the decoder layer and the readings domain.
@@ -16,6 +17,11 @@ import com.adsamcik.temperaturedashboard.core.model.ReadingSource
  * profile's advertisement decoder, extracts temperature / humidity / battery
  * into a [Reading], and tells the caller which profile matched (used by the
  * scan UI to surface "add this device" candidates).
+ *
+ * Emits diagnostic warnings on Napier (filter `AdvertisementInterpreter`) for
+ * adverts that *look* like a known family by name token but fail to decode
+ * — invaluable when chasing "this sensor showed up in scan but never produces
+ * readings" reports.
  */
 class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistry) {
 
@@ -31,9 +37,16 @@ class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistr
             manufacturerData = advert.manufacturerData,
             serviceData = advert.serviceData,
         )
-        val profile = profileRegistry.firstMatch(snapshot) ?: return null
+        val profile = profileRegistry.firstMatch(snapshot)
+        if (profile == null) {
+            logSuspiciousMiss(advert)
+            return null
+        }
         val fields = profile.decodeAdvertisement(snapshot)
         val reading = fields.toReading(timestampMillis = advert.timestamp, rssi = advert.rssi)
+        if (reading == null && fields.isEmpty()) {
+            logMatchedButEmpty(profile, advert)
+        }
         return InterpretedAdvertisement(
             advertisement = advert,
             profile = profile,
@@ -41,6 +54,53 @@ class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistr
             reading = reading,
         )
     }
+
+    private fun logSuspiciousMiss(advert: BleAdvertisement) {
+        val name = advert.name ?: return
+        if (!name.containsLikelyKnownToken()) return
+        Napier.w(
+            "Advert looked like a known device by name but no profile matched. " +
+                "name='${name}' addr=${advert.address} " +
+                "manufacturer=${advert.manufacturerData.summary()} " +
+                "serviceUuids=${advert.serviceUuids} " +
+                "serviceData=${advert.serviceData.keys}",
+            tag = LOG_TAG,
+        )
+    }
+
+    private fun logMatchedButEmpty(profile: DeviceProfile, advert: BleAdvertisement) {
+        Napier.w(
+            "Profile ${profile.id} matched but decoded zero fields. " +
+                "name='${advert.name}' addr=${advert.address} " +
+                "manufacturer=${advert.manufacturerData.summary()} " +
+                "serviceData=${advert.serviceData.summaryServiceData()}",
+            tag = LOG_TAG,
+        )
+    }
+
+    private fun String.containsLikelyKnownToken(): Boolean {
+        val tokens = listOf(
+            "Govee", "GVH", "ihoment", "GV5",
+            "H5072", "H5074", "H5075", "H5100", "H5101", "H5102", "H5103",
+            "H5104", "H5105", "H5108", "H5110", "H5174", "H5177",
+            "WoSensorTH", "WoHand", "WoMeter", "WoIOSensorTH",
+            "TP35",
+        )
+        return tokens.any { it in this }
+    }
+
+    private fun Map<Int, ByteArray>.summary(): String =
+        entries.joinToString(prefix = "{", postfix = "}") { (id, bytes) ->
+            "0x${id.toString(16).uppercase()}:${bytes.size}=${bytes.toHex()}"
+        }
+
+    private fun Map<String, ByteArray>.summaryServiceData(): String =
+        entries.joinToString(prefix = "{", postfix = "}") { (uuid, bytes) ->
+            "$uuid:${bytes.size}=${bytes.toHex()}"
+        }
+
+    private fun ByteArray.toHex(): String =
+        joinToString("") { "%02X".format(it.toInt() and 0xFF) }
 
     private fun List<DecodedField>.toReading(
         timestampMillis: kotlinx.datetime.Instant,
@@ -67,6 +127,8 @@ class AdvertisementInterpreter(private val profileRegistry: DeviceProfileRegistr
 
     private fun List<DecodedField>.longFor(name: String): Long? =
         firstOrNull { it.name == name }?.value?.let { (it as? DecodedValue.IntValue)?.v }
+
+    private companion object { const val LOG_TAG = "AdvertisementInterpreter" }
 }
 
 /** Output of [AdvertisementInterpreter.interpret] for a matched advertisement. */

@@ -6,6 +6,14 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
 }
 
+private val appVersionName: String = file("$rootDir/VERSION").readText().trim()
+
+// macOS jpackage refuses a major version of 0; pin to 1.0.0 until v1 ships.
+private val macPackageVersion: String = run {
+    val (major, minor, patch) = appVersionName.split('.').map { it.toInt() }
+    if (major == 0) "1.$minor.$patch" else appVersionName
+}
+
 kotlin {
     jvmToolchain(21)
 }
@@ -35,7 +43,7 @@ compose.desktop {
                 TargetFormat.Dmg,
             )
             packageName = "TemperatureDashboard"
-            packageVersion = "0.1.0"
+            packageVersion = appVersionName
             description = "Universal Bluetooth temperature & humidity sensor dashboard"
             copyright = "© 2026 adsamcik"
             vendor = "adsamcik"
@@ -50,11 +58,10 @@ compose.desktop {
             }
             macOS {
                 bundleID = "com.adsamcik.temperaturedashboard"
-                // Apple wants MAJOR.MINOR.PATCH with MAJOR > 0; until v1 ships we pin 1.0.0.
-                packageVersion = "1.0.0"
-                dmgPackageVersion = "1.0.0"
-                packageBuildVersion = "1.0.0"
-                dmgPackageBuildVersion = "1.0.0"
+                packageVersion = macPackageVersion
+                dmgPackageVersion = macPackageVersion
+                packageBuildVersion = macPackageVersion
+                dmgPackageBuildVersion = macPackageVersion
             }
         }
     }

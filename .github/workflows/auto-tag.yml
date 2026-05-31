@@ -1,0 +1,54 @@
+name: Auto-tag
+
+# Watches main for changes to VERSION. When the value differs from the latest
+# `v*` tag, creates and pushes `v<new>` — which triggers the existing
+# Release workflow.
+on:
+  push:
+    branches: [main]
+    paths: ['VERSION']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Tag if VERSION bumped
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read VERSION
+        id: ver
+        run: |
+          version="$(cat VERSION | tr -d '[:space:]')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Read version: ${version}"
+
+      - name: Check tag does not exist
+        id: check
+        run: |
+          tag="v${{ steps.ver.outputs.version }}"
+          if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists, nothing to do"
+            echo "needs_tag=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag ${tag} does not exist — will create"
+            echo "needs_tag=true" >> "$GITHUB_OUTPUT"
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create + push tag
+        if: steps.check.outputs.needs_tag == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.check.outputs.tag }}"
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "${tag}" -m "Release ${tag}"
+          git push origin "${tag}"
+          echo "Pushed ${tag}; Release workflow will pick it up."

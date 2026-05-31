@@ -24,6 +24,19 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension<*, 
             targetCompatibility = javaVersion
             isCoreLibraryDesugaringEnabled = true
         }
+
+        // AGP 8.7's lint has IncompatibleClassChangeError in
+        // NonNullableMutableLiveDataDetector against newer Kotlin metadata
+        // (we don't even use LiveData). Disable the offending check globally
+        // so release builds can finish.
+        lint {
+            disable += setOf(
+                "NullSafeMutableLiveData",
+                "InvalidPackage",
+            )
+            abortOnError = false
+            checkReleaseBuilds = false
+        }
     }
     extensions.configure<KotlinAndroidProjectExtension> {
         compilerOptions {

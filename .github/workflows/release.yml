@@ -82,10 +82,10 @@ jobs:
       fail-fast: false
       matrix:
         cfg:
-          - { os: ubuntu-latest,  jni: linux-x64,   format: 'deb',           outDir: app/desktop/build/compose/binaries/main/deb }
-          - { os: windows-latest, jni: windows-x64, format: 'msi',           outDir: app/desktop/build/compose/binaries/main/msi }
-          - { os: macos-latest,   jni: macos-arm64, format: 'dmg',           outDir: app/desktop/build/compose/binaries/main/dmg }
-          - { os: macos-13,       jni: macos-x64,   format: 'dmg',           outDir: app/desktop/build/compose/binaries/main/dmg }
+          - { os: ubuntu-latest,  jni: linux-x64,   format: 'deb', outDir: app/desktop/build/compose/binaries/main/deb, jnaResourceDir: 'linux-x86-64',   jniLibName: 'libbtleplug_jni.so' }
+          - { os: windows-latest, jni: windows-x64, format: 'msi', outDir: app/desktop/build/compose/binaries/main/msi, jnaResourceDir: 'win32-x86-64',   jniLibName: 'btleplug_jni.dll' }
+          - { os: macos-latest,   jni: macos-arm64, format: 'dmg', outDir: app/desktop/build/compose/binaries/main/dmg, jnaResourceDir: 'darwin-aarch64', jniLibName: 'libbtleplug_jni.dylib' }
+          - { os: macos-13,       jni: macos-x64,   format: 'dmg', outDir: app/desktop/build/compose/binaries/main/dmg, jnaResourceDir: 'darwin-x86-64', jniLibName: 'libbtleplug_jni.dylib' }
     runs-on: ${{ matrix.cfg.os }}
     timeout-minutes: 45
     steps:
@@ -98,7 +98,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: btleplug-jni-${{ matrix.cfg.jni }}
-          path: app/desktop/src/main/resources/native/
+          path: app/desktop/build/jni-stage/
+
+      - name: Place JNI lib at JNA-resolvable resource path
+        shell: bash
+        run: |
+          mkdir -p app/desktop/src/main/resources/${{ matrix.cfg.jnaResourceDir }}
+          cp app/desktop/build/jni-stage/${{ matrix.cfg.jniLibName }} \
+             app/desktop/src/main/resources/${{ matrix.cfg.jnaResourceDir }}/
 
       - name: Package native distribution
         run: ./gradlew :app:desktop:packageDistributionForCurrentOs --no-daemon --stacktrace

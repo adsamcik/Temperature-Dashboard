@@ -149,6 +149,110 @@ class GoveeProfileTest {
         assertThat(GoveeProfile.decodeAdvertisement(snapshot(payload = tooLong))).isEmpty()
     }
 
+    // ---------------------------------------------------------------- H5072/H5075 (Variant B)
+
+    /**
+     * H5075 6-byte layout — packed temp/humid at `data[1..3]`, battery at `data[4]`.
+     * 23.4 °C / 51.2 % / 70 %. value = 234512 = 0x03_94_10.
+     */
+    @Test
+    fun `H5075 decodes packed B-variant correctly`() {
+        // [hdr, t0, t1, t2, batt, trail] — base=1 in our decoder.
+        val payload = byteArrayOf(0x00, 0x03, 0x94.toByte(), 0x10, 0x46, 0x00)
+
+        val fields = GoveeProfile.decodeAdvertisement(
+            snapshot(name = "GVH5075_AABB", payload = payload),
+        )
+
+        assertApprox(fields.floatValue("Temperature"), 23.4)
+        assertApprox(fields.floatValue("Humidity"), 51.2)
+        assertThat(fields.intValue("Battery")).isEqualTo(70L)
+    }
+
+    @Test
+    fun `H5072 matches by name token`() {
+        assertThat(GoveeProfile.matches(snapshot(name = "GVH5072_ABCD"))).isTrue()
+    }
+
+    // ---------------------------------------------------------------- H5074 (Variant C)
+
+    /**
+     * H5074 7-byte little-endian layout — `data[1..2]` int16 LE / 100 = temp,
+     * `data[3..4]` uint16 LE / 100 = humid, `data[5]` = battery.
+     * 23.45 °C / 51.23 % / 82 %.
+     *
+     *   temp_raw  = 2345  = 0x0929 → LE bytes 29 09
+     *   humid_raw = 5123  = 0x1403 → LE bytes 03 14
+     *   battery   = 0x52  = 82
+     */
+    @Test
+    fun `H5074 decodes little-endian C-variant correctly`() {
+        val payload = byteArrayOf(0x00, 0x29, 0x09, 0x03, 0x14, 0x52, 0x00)
+
+        val fields = GoveeProfile.decodeAdvertisement(
+            snapshot(name = "GVH5074_AABB", payload = payload),
+        )
+
+        assertApprox(fields.floatValue("Temperature"), 23.45, tolerance = 0.01)
+        assertApprox(fields.floatValue("Humidity"), 51.23, tolerance = 0.01)
+        assertThat(fields.intValue("Battery")).isEqualTo(82L)
+    }
+
+    @Test
+    fun `H5074 decodes a sub-zero temperature`() {
+        // -5.42 °C / 30.00 % / 80 %.
+        //   temp_raw = -542 = 0xFDE2 (two's-complement) → LE bytes E2 FD
+        //   humid_raw = 3000 = 0x0BB8 → LE bytes B8 0B
+        val payload = byteArrayOf(0x00, 0xE2.toByte(), 0xFD.toByte(), 0xB8.toByte(), 0x0B, 0x50, 0x00)
+
+        val fields = GoveeProfile.decodeAdvertisement(
+            snapshot(name = "H5074 Garage", payload = payload),
+        )
+
+        assertApprox(fields.floatValue("Temperature"), -5.42, tolerance = 0.01)
+        assertApprox(fields.floatValue("Humidity"), 30.0, tolerance = 0.01)
+        assertThat(fields.intValue("Battery")).isEqualTo(80L)
+    }
+
+    // ---------------------------------------------------------------- manufacturer-ID fallback
+
+    @Test
+    fun `decode falls back to A_PACKED via manufacturer id 0xEC88 when name token missing`() {
+        // 8-byte payload, A-variant. Renamed device: friendly name only.
+        val payload = byteArrayOf(0x00, 0x00, 0x03, 0x94.toByte(), 0x10, 0x55, 0x11, 0x22)
+
+        val fields = GoveeProfile.decodeAdvertisement(
+            snapshot(name = "Bedroom", manufacturerId = 0xEC88, payload = payload),
+        )
+
+        assertApprox(fields.floatValue("Temperature"), 23.4)
+        assertThat(fields.intValue("Battery")).isEqualTo(85L)
+    }
+
+    @Test
+    fun `decode falls back to C_LE for 7-byte EC88 payload when name missing`() {
+        val payload = byteArrayOf(0x00, 0x29, 0x09, 0x03, 0x14, 0x52, 0x00)
+
+        val fields = GoveeProfile.decodeAdvertisement(
+            snapshot(name = null, manufacturerId = 0xEC88, payload = payload),
+        )
+
+        assertApprox(fields.floatValue("Temperature"), 23.45, tolerance = 0.01)
+        assertThat(fields.intValue("Battery")).isEqualTo(82L)
+    }
+
+    @Test
+    fun `matches by manufacturer id fallback when no name`() {
+        val snap = snapshot(name = null, manufacturerId = 0xEC88, payload = ByteArray(6))
+        assertThat(GoveeProfile.matches(snap)).isTrue()
+    }
+
+    @Test
+    fun `does not match by Apple manufacturer id`() {
+        val snap = snapshot(name = null, manufacturerId = 0x004C, payload = ByteArray(6))
+        assertThat(GoveeProfile.matches(snap)).isFalse()
+    }
+
     private fun List<DecodedField>.intValue(name: String): Long =
         ((first { it.name == name }.value) as DecodedValue.IntValue).v
 
