@@ -32,7 +32,7 @@ import com.adsamcik.temperaturedashboard.decoder.api.ProfileAction
  *
  * References: github.com/Bluetooth-Devices/thermopro-ble, github.com/pasky/tp357
  */
-internal object ThermoProTP35xProfile : DeviceProfile {
+object ThermoProTP35xProfile : DeviceProfile {
     override val id = "thermopro.tp35x"
     override val displayName = "ThermoPro TP35x"
 

@@ -60,6 +60,7 @@ fun TdashApp(useCompactLayout: Boolean) {
     val coordinator = koinInject<ScanningCoordinator>()
     val historySharer = koinInject<HistorySharer>()
     val autostartManager = koinInject<AutostartManager>()
+    val backfillService = koinInject<com.adsamcik.temperaturedashboard.shared.backfill.ThermoProBackfillService>()
     val snackbarState = remember { SnackbarHostState() }
 
     val unit by settingsRepository.observeTemperatureUnit()
@@ -187,6 +188,7 @@ fun TdashApp(useCompactLayout: Boolean) {
                     readingRepository = readingRepository,
                     alertRepository = alertRepository,
                     historySharer = historySharer,
+                    backfillService = backfillService,
                     snackbarState = snackbarState,
                 )
             },
@@ -266,6 +268,7 @@ private fun SensorDetailRoute(
     readingRepository: ReadingRepository,
     alertRepository: SensorAlertRepository,
     historySharer: HistorySharer,
+    backfillService: com.adsamcik.temperaturedashboard.shared.backfill.ThermoProBackfillService,
     snackbarState: SnackbarHostState,
 ) {
     var range by remember { mutableStateOf(HistoryRange.Day) }
@@ -292,6 +295,26 @@ private fun SensorDetailRoute(
     val stats = remember(intervals, window) {
         com.adsamcik.temperaturedashboard.core.model.IntervalAggregator.aggregate(intervals, window)
     }
+
+    val currentSensor = sensor
+    val isThermoPro = currentSensor?.profileId?.startsWith("thermopro.tp") == true
+    val syncHistoryCallback: (() -> Unit)? = if (isThermoPro) {
+        {
+            scope.launch {
+                snackbarState.showSnackbar("Connecting to ${currentSensor!!.displayName}…")
+                val result = backfillService.syncDayHistory(currentSensor)
+                val msg = when (result) {
+                    is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Ok ->
+                        "Synced ${result.readingsIngested} historical readings"
+                    is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Skipped ->
+                        "Skipped: ${result.reason}"
+                    is com.adsamcik.temperaturedashboard.shared.backfill.BackfillResult.Failed ->
+                        "Sync failed: ${result.message}"
+                }
+                snackbarState.showSnackbar(msg)
+            }
+        }
+    } else null
 
     SensorDetailScreen(
         sensor = sensor,
@@ -323,6 +346,7 @@ private fun SensorDetailRoute(
                 snackbarState.showSnackbar(historySharer.exportJson(current, intervals).toUserMessage())
             }
         },
+        onSyncHistory = syncHistoryCallback,
     )
 }
 

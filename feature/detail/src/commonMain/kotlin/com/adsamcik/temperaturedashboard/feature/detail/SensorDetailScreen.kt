@@ -68,6 +68,7 @@ fun SensorDetailScreen(
     onDeleteAlert: (Long) -> Unit,
     onExportCsv: () -> Unit,
     onExportJson: () -> Unit,
+    onSyncHistory: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     if (sensor == null) {
@@ -155,6 +156,15 @@ fun SensorDetailScreen(
         ) {
             OutlinedButton(onClick = onExportCsv, modifier = Modifier.weight(1f)) { Text("Export CSV") }
             OutlinedButton(onClick = onExportJson, modifier = Modifier.weight(1f)) { Text("Export JSON") }
+        }
+
+        if (onSyncHistory != null) {
+            OutlinedButton(
+                onClick = onSyncHistory,
+                modifier = Modifier.fillMaxWidth().padding(top = TdashSpacing.s),
+            ) {
+                Text("Sync 24h history from device (BETA)")
+            }
         }
     }
 }

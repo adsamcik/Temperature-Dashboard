@@ -34,4 +34,7 @@ val androidPlatformModule: Module = module {
     single<com.adsamcik.temperaturedashboard.shared.system.AutostartManager> {
         com.adsamcik.temperaturedashboard.shared.system.AndroidAutostartManager()
     }
+    single<com.adsamcik.temperaturedashboard.ble.api.BleConnector> {
+        com.adsamcik.temperaturedashboard.ble.android.AndroidBleConnector(androidContext())
+    }
 }

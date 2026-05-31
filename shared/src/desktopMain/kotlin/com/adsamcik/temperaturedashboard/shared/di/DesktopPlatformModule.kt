@@ -38,13 +38,14 @@ val desktopPlatformModule: Module = module {
 
     // Autostart at login — see DesktopAutostartManager for per-OS storage.
     single<com.adsamcik.temperaturedashboard.shared.system.AutostartManager> {
-        // Use the JVM's invocation path as the launcher command. End users running
-        // a native installer (msi / deb / dmg) get the correct path; running from
-        // ./gradlew :app:desktop:run gets the gradle wrapper which is fine for dev.
         val launcher = System.getProperty("jpackage.app-path")
             ?: System.getProperty("java.class.path")
                 ?.split(java.io.File.pathSeparator)?.firstOrNull()
             ?: "temperature-dashboard"
         com.adsamcik.temperaturedashboard.shared.system.DesktopAutostartManager(launcher)
+    }
+
+    single<com.adsamcik.temperaturedashboard.ble.api.BleConnector> {
+        com.adsamcik.temperaturedashboard.ble.desktop.DesktopBleConnector()
     }
 }
