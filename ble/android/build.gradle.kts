@@ -8,8 +8,8 @@ android {
 
 dependencies {
     api(project(":ble:api"))
-    api(project(":decoder:api"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.datetime)
     implementation(libs.napier)
 }
