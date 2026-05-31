@@ -62,7 +62,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build
-        run: ./gradlew :app:android:assembleRelease :app:android:bundleRelease --no-daemon --stacktrace
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:android:assembleRelease :app:android:bundleRelease --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,7 +110,9 @@ jobs:
              app/desktop/src/main/resources/${{ matrix.cfg.jnaResourceDir }}/
 
       - name: Package native distribution
-        run: ./gradlew :app:desktop:packageDistributionForCurrentOs --no-daemon --stacktrace
+        run: |
+          chmod +x ./gradlew || true
+          ./gradlew :app:desktop:packageDistributionForCurrentOs --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:

@@ -51,4 +51,15 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git tag -a "${tag}" -m "Release ${tag}"
           git push origin "${tag}"
-          echo "Pushed ${tag}; Release workflow will pick it up."
+          echo "Pushed ${tag}; dispatching Release workflow."
+
+      - name: Dispatch Release workflow at the new tag
+        if: steps.check.outputs.needs_tag == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # GitHub deliberately suppresses downstream workflow triggers for
+        # pushes authenticated with the default GITHUB_TOKEN, so we have to
+        # kick the Release workflow off explicitly via workflow_dispatch.
+        run: |
+          tag="${{ steps.check.outputs.tag }}"
+          gh workflow run release.yml --ref "${tag}"

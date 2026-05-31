@@ -73,6 +73,11 @@ struct Connection {
     peripheral: Peripheral,
     notifications: Mutex<VecDeque<NotificationEvent>>,
     notify_task: Mutex<Option<JoinHandle<()>>>,
+    /// characteristic UUID → owning service UUID, built at discover time.
+    /// btleplug's ValueNotification only carries the characteristic UUID;
+    /// we look the service up from this map so JVM consumers can filter by
+    /// (service, char) like the Android side does.
+    char_to_service: Mutex<HashMap<Uuid, Uuid>>,
 }
 
 #[derive(Clone)]
@@ -284,11 +289,20 @@ pub extern "C" fn btleplug_connect(
             *next += 1;
             id
         };
+        // Build the characteristic→service map up front so the notification
+        // pump doesn't need an extra lookup per event.
+        let mut char_to_service = HashMap::new();
+        for service in peripheral.services() {
+            for ch in &service.characteristics {
+                char_to_service.insert(ch.uuid, service.uuid);
+            }
+        }
         let connection = Arc::new(Connection {
             id,
             peripheral: peripheral.clone(),
             notifications: Mutex::new(VecDeque::with_capacity(128)),
             notify_task: Mutex::new(None),
+            char_to_service: Mutex::new(char_to_service),
         });
         // Start a single notification-pump task per connection.
         let conn_clone = connection.clone();
@@ -591,12 +605,20 @@ async fn run_notification_pump(conn: Arc<Connection>) {
     tokio::pin!(stream);
     const MAX_BACKLOG: usize = 256;
     while let Some(note) = stream.next().await {
+        // ValueNotification carries only the characteristic UUID; look up the
+        // owning service from the map we built at connect time.
+        let service_uuid = conn
+            .char_to_service
+            .lock()
+            .get(&note.uuid)
+            .copied()
+            .unwrap_or(Uuid::nil());
         let mut queue = conn.notifications.lock();
         if queue.len() >= MAX_BACKLOG {
             queue.pop_front();
         }
         queue.push_back(NotificationEvent {
-            service_uuid: note.service_uuid.to_string().to_lowercase(),
+            service_uuid: service_uuid.to_string().to_lowercase(),
             characteristic_uuid: note.uuid.to_string().to_lowercase(),
             bytes: note.value,
         });
