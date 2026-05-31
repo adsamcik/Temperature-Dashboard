@@ -24,8 +24,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashTheme
 import com.adsamcik.temperaturedashboard.core.model.SensorId
+import com.adsamcik.temperaturedashboard.shared.i18n.labelOf
 import com.adsamcik.temperaturedashboard.shared.navigation.NavStack
 import com.adsamcik.temperaturedashboard.shared.navigation.NavTarget
 import com.adsamcik.temperaturedashboard.shared.navigation.ShellDestination
@@ -87,16 +90,24 @@ private fun ShellScaffold(
 ) {
     if (useCompactLayout) {
         Scaffold(
-            topBar = { TopAppBar(title = { Text(current.label) }) },
+            topBar = {
+                TopAppBar(title = {
+                    Text(
+                        text = labelOf(current),
+                        modifier = Modifier.semantics { heading() },
+                    )
+                })
+            },
             snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarState) },
             bottomBar = {
                 NavigationBar {
                     ShellDestination.entries.forEach { dest ->
+                        val label = labelOf(dest)
                         NavigationBarItem(
                             selected = dest == current,
                             onClick = { onSelect(dest) },
-                            icon = { Icon(dest.icon, contentDescription = dest.label) },
-                            label = { Text(dest.label) },
+                            icon = { Icon(dest.icon, contentDescription = label) },
+                            label = { Text(label) },
                         )
                     }
                 }
@@ -109,17 +120,25 @@ private fun ShellScaffold(
             androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxSize()) {
                 NavigationRail {
                     ShellDestination.entries.forEach { dest ->
+                        val label = labelOf(dest)
                         NavigationRailItem(
                             selected = dest == current,
                             onClick = { onSelect(dest) },
-                            icon = { Icon(dest.icon, contentDescription = dest.label) },
-                            label = { Text(dest.label) },
+                            icon = { Icon(dest.icon, contentDescription = label) },
+                            label = { Text(label) },
                         )
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
-                        topBar = { TopAppBar(title = { Text(current.label) }) },
+                        topBar = {
+                            TopAppBar(title = {
+                                Text(
+                                    text = labelOf(current),
+                                    modifier = Modifier.semantics { heading() },
+                                )
+                            })
+                        },
                         snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarState) },
                     ) { padding ->
                         Box(modifier = Modifier.fillMaxSize().padding(padding)) { content() }

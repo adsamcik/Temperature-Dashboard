@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Czech (cs) — sample locale demonstrating the multi-language path. -->
+<resources>
+    <string name="shell_dashboard">Přehled</string>
+    <string name="shell_scan">Přidat senzor</string>
+    <string name="shell_settings">Nastavení</string>
+
+    <string name="action_add">Přidat</string>
+    <string name="action_cancel">Zrušit</string>
+    <string name="action_save">Uložit</string>
+    <string name="action_delete">Smazat</string>
+    <string name="action_rename">Přejmenovat</string>
+    <string name="action_show">Zobrazit</string>
+    <string name="action_back">Zpět</string>
+
+    <string name="app_name">Teplotní přehled</string>
+    <string name="sensor_detail_title">Senzor</string>
+
+    <string name="settings_appearance">Vzhled</string>
+    <string name="settings_temperature_unit">Jednotka teploty</string>
+    <string name="settings_coalescing_thresholds">Prahové hodnoty slučování</string>
+    <string name="settings_stale_window">Okno zastarání</string>
+    <string name="settings_hidden_sensors">Skryté senzory</string>
+    <string name="settings_start_at_login">Spustit po přihlášení</string>
+    <string name="settings_about">O aplikaci</string>
+</resources>

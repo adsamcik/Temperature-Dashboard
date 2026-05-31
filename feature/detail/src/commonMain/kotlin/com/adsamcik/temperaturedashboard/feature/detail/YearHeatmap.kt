@@ -18,6 +18,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.adsamcik.temperaturedashboard.core.designsystem.TdashSpacing
 import com.adsamcik.temperaturedashboard.core.model.ReadingInterval
 import com.adsamcik.temperaturedashboard.core.ui.component.formatDecimal
@@ -75,11 +77,16 @@ fun YearHeatmap(
             val today = Clock.System.now().toLocalDateTime(tz).date
             val rangeStart = today.minus(364, DateTimeUnit.DAY)
 
+            val a11ySummary = remember(dailyAvg, minT, maxT) {
+                "Heatmap of ${dailyAvg.size} days of temperature data. " +
+                    "Range from ${"%.1f".formatLike(minT)} to ${"%.1f".formatLike(maxT)} degrees Celsius."
+            }
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(53f / 7f)
-                    .padding(top = TdashSpacing.s),
+                    .padding(top = TdashSpacing.s)
+                    .semantics { contentDescription = a11ySummary },
             ) {
                 val cellW = size.width / 53f
                 val cellH = size.height / 7f
@@ -130,6 +137,16 @@ private fun colorForTemp(
     val range = (max - min).takeIf { it > 0 } ?: 1.0
     val frac = ((t - min) / range).coerceIn(0.0, 1.0).toFloat()
     return if (frac < 0.5f) lerp(cold, mid, frac * 2f) else lerp(mid, hot, (frac - 0.5f) * 2f)
+}
+
+/** KMP-safe one-decimal formatter — Locale-free so it works in commonMain. */
+private fun String.formatLike(value: Double): String {
+    // The receiver is just `"%.1f"` for readability at the call site; we don't
+    // actually use Locale-based String.format here.
+    val rounded = (value * 10).toLong()
+    val whole = rounded / 10
+    val tenths = kotlin.math.abs(rounded - whole * 10)
+    return if (value < 0 && whole == 0L) "-0.$tenths" else "$whole.$tenths"
 }
 
 /**
